@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package user;
+
+option java_multiple_files = true;
+option java_package = "com.nqt.common.grpc.user";
+option java_outer_classname = "UserProto";
+
+service UserService {
+  // Dùng bởi onboarding-service để lấy userId từ email (email lấy từ JWT/request)
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (UserResponse);
+
+  // Để dùng sau này nếu service khác cần tra cứu ngược lại từ id
+  rpc GetUserById(GetUserByIdRequest) returns (UserResponse);
+}
+
+message GetUserByEmailRequest {
+  string email = 1;
+}
+
+message GetUserByIdRequest {
+  int64 user_id = 1;
+}
+
+message UserResponse {
+  int64 id = 1;
+  string email = 2;
+  string name = 3;
+  bool found = 4;
+}

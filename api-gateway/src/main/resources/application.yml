@@ -1,0 +1,62 @@
+server:
+  port: 8080 # Cổng chính duy nhất mà Client truy cập
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        # 1. Định tuyến API của auth-service
+        - id: auth-service-route
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/auth/**
+
+        # 2. Định tuyến file JSON tài liệu docs của auth-service
+        - id: auth-service-docs
+          uri: http://localhost:8082
+          predicates:
+            - Path=/v3/api-docs/auth-service
+          filters:
+            - RewritePath=/v3/api-docs/auth-service, /v3/api-docs
+
+        # 3. Định tuyến API của onboarding-service
+        - id: onboarding-service-route
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/onboarding/**
+
+        # 4. Định tuyến file JSON tài liệu docs của onboarding-service
+        - id: onboarding-service-docs
+          uri: http://localhost:8083
+          predicates:
+            - Path=/v3/api-docs/onboarding-service
+          filters:
+            - RewritePath=/v3/api-docs/onboarding-service, /v3/api-docs
+
+        # 5. ➕ Định tuyến API của checkin-service (Mới thêm)
+        - id: checkin-service-route
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/checkin/**
+
+        # 6. ➕ Định tuyến file JSON tài liệu docs của checkin-service (Mới thêm)
+        - id: checkin-service-docs
+          uri: http://localhost:8084
+          predicates:
+            - Path=/v3/api-docs/checkin-service
+          filters:
+            - RewritePath=/v3/api-docs/checkin-service, /v3/api-docs
+
+# Gộp chung các service vào một giao diện Swagger UI duy nhất tại cổng 8080
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Auth Service (Quản lý tài khoản)
+        url: /v3/api-docs/auth-service
+      - name: Onboarding Service (Khảo sát đầu vào)
+        url: /v3/api-docs/onboarding-service
+      - name: Checkin Service (Chụp ảnh check-in)
+        url: /v3/api-docs/checkin-service
