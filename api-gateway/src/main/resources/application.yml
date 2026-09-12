@@ -6,6 +6,22 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      # ➕ Thêm khối cấu hình Global CORS này vào đây
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders: "*"
+            allowCredentials: true
+        add-to-simple-url-handler-mapping: true
+
       routes:
         # 1. Định tuyến API của auth-service
         - id: auth-service-route
@@ -35,13 +51,13 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/onboarding-service, /v3/api-docs
 
-        # 5. ➕ Định tuyến API của checkin-service (Mới thêm)
+        # 5. Định tuyến API của checkin-service
         - id: checkin-service-route
           uri: http://localhost:8084
           predicates:
             - Path=/api/checkin/**
 
-        # 6. ➕ Định tuyến file JSON tài liệu docs của checkin-service (Mới thêm)
+        # 6. Định tuyến file JSON tài liệu docs của checkin-service
         - id: checkin-service-docs
           uri: http://localhost:8084
           predicates:
