@@ -1,6 +1,5 @@
 package com.nqt.onboarding.infrastructure.persistence;
 
-
 import com.nqt.onboarding.usecase.boundary.TaskProgressRepositoryGateway;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -15,8 +14,13 @@ public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepository
     private final TaskProgressJpaRepository jpaRepository;
 
     @Override
-    public Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate taskDate) {
-        return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, taskDate);
+    public Optional<TaskProgressEntity> findByUserAndTaskAndDate(Long userId, Long taskId, LocalDate date) {
+        return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, date);
+    }
+
+    @Override
+    public Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date) {
+        return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, date);
     }
 
     @Override

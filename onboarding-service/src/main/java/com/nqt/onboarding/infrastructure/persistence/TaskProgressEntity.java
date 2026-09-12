@@ -29,9 +29,18 @@ public class TaskProgressEntity {
     private LocalDate taskDate;
 
     @Column(name = "is_completed", nullable = false)
+    @Builder.Default
     private Boolean isCompleted = false;
 
-    // ➕ Thêm cột này để lưu các item user tích chọn (Lưu dạng chuỗi ngăn cách bằng dấu phẩy, ví dụ: "Thức ăn nhanh,Nước ngọt có ga")
+    // ➕ Phải có 2 trường này để Interactor gọi được get/set/builder
+    @Column(name = "current_count", nullable = false)
+    @Builder.Default
+    private Integer currentCount = 0;
+
+    @Column(name = "target_count", nullable = false)
+    @Builder.Default
+    private Integer targetCount = 5;
+
     @Column(name = "selected_items", columnDefinition = "TEXT")
     private String selectedItems;
 }

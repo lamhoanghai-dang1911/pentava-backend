@@ -1,20 +1,19 @@
 package com.nqt.onboarding.usecase.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.time.LocalDate;
 import java.util.List;
 
 @Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class TaskProgressResponseDTO {
+    private String message;
     private Long taskId;
-    private LocalDate taskDate;
+    private Integer currentCount;
+    private Integer targetCount;
     private Boolean isCompleted;
+    private LocalDate taskDate;
+
     private List<String> selectedItems;
 }
