@@ -12,4 +12,5 @@ public class LoginResponseDTO {
     private String accessToken;
     private String email;
     private String message;
+    private boolean hasCompletedOnboarding;
 }

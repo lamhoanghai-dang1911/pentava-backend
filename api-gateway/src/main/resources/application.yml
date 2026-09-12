@@ -65,7 +65,6 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/checkin-service, /v3/api-docs
 
-# Gộp chung các service vào một giao diện Swagger UI duy nhất tại cổng 8080
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

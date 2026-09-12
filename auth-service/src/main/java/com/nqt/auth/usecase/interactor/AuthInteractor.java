@@ -105,6 +105,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
                 .accessToken(token)
                 .email(user.getEmail())
                 .message("Đăng nhập thành công")
+                .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .build();
 
         outputPort.present(responseDTO);
@@ -131,6 +132,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
                 .accessToken(token)
                 .email(user.getEmail())
                 .message("Đăng nhập thành công")
+                .hasCompletedOnboarding(user.isHasCompletedOnboarding()) // ➕ Truyền trạng thái vào đây
                 .build();
 
         outputPort.present(responseDTO);
@@ -164,6 +166,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
                 .accessToken(token)
                 .email(user.getEmail())
                 .message("Đăng nhập thành công")
+                .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .build();
 
         outputPort.present(responseDTO);

@@ -15,5 +15,6 @@ public class User {
     private String otpCode;
     private LocalDateTime otpExpiryTime;
     private boolean isVerified;
+    private boolean hasCompletedOnboarding;
     private LocalDateTime createdAt;
 }
