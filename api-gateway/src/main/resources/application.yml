@@ -6,11 +6,11 @@ spring:
     name: api-gateway
   cloud:
     gateway:
-      # ➕ Thêm khối cấu hình Global CORS này vào đây
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            allowedOriginPatterns:
+              - "http://localhost:3000"
             allowedMethods:
               - GET
               - POST
@@ -76,3 +76,10 @@ springdoc:
         url: /v3/api-docs/onboarding-service
       - name: Checkin Service (Chụp ảnh check-in)
         url: /v3/api-docs/checkin-service
+
+# Cấu hình log chi tiết để theo dõi luồng request và CORS qua Gateway
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.cors: DEBUG
+    reactor.netty.http.server: DEBUG
