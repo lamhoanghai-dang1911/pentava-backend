@@ -28,9 +28,17 @@ public class UserEntity {
     private String authProvider;
 
     private String otpCode;
+
     private LocalDateTime otpExpiryTime;
+
     @Builder.Default
     private boolean isVerified = false;
 
+    // 🚀 BỔ SUNG CỘT NÀY ĐỂ HIBERNATE TỰ ĐỘNG TẠO TRÊN DATABASE
+    @Builder.Default
+    @Column(name = "has_completed_onboarding", nullable = false)
+    private boolean hasCompletedOnboarding = false;
+
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }

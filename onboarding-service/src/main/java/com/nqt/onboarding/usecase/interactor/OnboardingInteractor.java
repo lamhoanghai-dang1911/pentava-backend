@@ -185,6 +185,11 @@ public class OnboardingInteractor implements OnboardingInputPort {
             }
         }
 
+        // 🚀 GỌI gRPC CẬP NHẬT TRẠNG THÁI ONBOARDING SANG AUTH-SERVICE
+        userServiceGateway.updateOnboardingStatus(userId, true);
+        logger.info("Đã cập nhật hasCompletedOnboarding = true thành công qua gRPC cho userId: {}", userId);
+
+        // Return response gọn gàng
         // Return response gọn gàng
         OnboardingResponseDTO response = OnboardingResponseDTO.builder()
                 .message("Lưu thông tin khảo sát thành công")

@@ -36,6 +36,7 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
                 .otpCode(user.getOtpCode())
                 .otpExpiryTime(user.getOtpExpiryTime())
                 .isVerified(user.isVerified())
+                .hasCompletedOnboarding(user.isHasCompletedOnboarding()) // 🚀 BỔ SUNG TRƯỜNG NÀY KHI SAVE
                 .createdAt(user.getCreatedAt())
                 .build();
 
@@ -53,6 +54,7 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
                 .otpCode(entity.getOtpCode())
                 .otpExpiryTime(entity.getOtpExpiryTime())
                 .isVerified(entity.isVerified())
+                .hasCompletedOnboarding(entity.isHasCompletedOnboarding()) // 🚀 BỔ SUNG TRƯỜNG NÀY KHI MAP LÊN DOMAIN
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

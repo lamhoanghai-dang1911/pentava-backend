@@ -1,9 +1,6 @@
 package com.nqt.onboarding.infrastructure.grpc;
 
-import com.nqt.common.grpc.user.GetUserByEmailRequest;
-import com.nqt.common.grpc.user.GetUserByIdRequest;
-import com.nqt.common.grpc.user.UserResponse;
-import com.nqt.common.grpc.user.UserServiceGrpc;
+import com.nqt.common.grpc.user.*;
 import com.nqt.onboarding.usecase.boundary.UserServiceGateway;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.slf4j.Logger;
@@ -48,10 +45,10 @@ public class UserGrpcClientAdapter implements UserServiceGateway {
     @Override
     public Optional<String> getUserEmailById(Long userId) {
         try {
-            logger.debug("Gọi gRPC GetUserById với userId: {}", userId);
+            logger.debug("Gọi gRPC GetUserId với userId: {}", userId);
 
-            UserResponse response = userServiceStub.getUserById(
-                    GetUserByIdRequest.newBuilder()
+            UserResponse response = userServiceStub.getUserId(
+                    GetUserIdRequest.newBuilder()
                             .setUserId(userId)
                             .build()
             );
@@ -64,8 +61,34 @@ public class UserGrpcClientAdapter implements UserServiceGateway {
             return Optional.of(response.getEmail());
 
         } catch (Exception e) {
-            logger.error("gRPC call getUserById thất bại với userId: {}", userId, e);
+            logger.error("gRPC call getUserId thất bại với userId: {}", userId, e);
             throw new RuntimeException("Không thể resolve email từ auth-service", e);
+        }
+    }
+
+    // 🚀 BỔ SUNG: Phương thức gọi gRPC cập nhật trạng thái onboarding sang auth-service
+    @Override
+    public void updateOnboardingStatus(Long userId, boolean hasCompleted) {
+        try {
+            logger.debug("Gọi gRPC UpdateOnboardingStatus cho userId: {} với trạng thái: {}", userId, hasCompleted);
+
+            UpdateOnboardingStatusResponse response = userServiceStub.updateOnboardingStatus(
+                    UpdateOnboardingStatusRequest.newBuilder()
+                            .setUserId(userId)
+                            .setHasCompletedOnboarding(hasCompleted)
+                            .build()
+            );
+
+            if (!response.getSuccess()) {
+                logger.error("Cập nhật onboarding status thất bại ở auth-service: {}", response.getMessage());
+                throw new RuntimeException("Lỗi từ auth-service: " + response.getMessage());
+            }
+
+            logger.info("Cập nhật onboarding status thành công qua gRPC cho userId: {}", userId);
+
+        } catch (Exception e) {
+            logger.error("gRPC call updateOnboardingStatus thất bại với userId: {}", userId, e);
+            throw new RuntimeException("Không thể cập nhật trạng thái onboarding sang auth-service", e);
         }
     }
 }
