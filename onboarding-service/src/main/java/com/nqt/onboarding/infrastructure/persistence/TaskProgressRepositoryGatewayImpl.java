@@ -13,16 +13,6 @@ import java.util.Optional;
 public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepositoryGateway {
 
     private final TaskProgressJpaRepository jpaRepository;
-    private final SpringDataTaskProgressRepository springDataTaskProgressRepository;
-    @Override
-    public Optional<TaskProgressEntity> findByUserAndTaskAndDate(Long userId, Long taskId, LocalDate date) {
-        return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, date);
-    }
-
-    @Override
-    public Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date) {
-        return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, date);
-    }
 
     @Override
     public TaskProgressEntity save(TaskProgressEntity entity) {
@@ -30,7 +20,23 @@ public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepository
     }
 
     @Override
+    public Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date) {
+        return jpaRepository.findByUserIdAndTaskIdAndTaskDateAndIsDeletedFalse(userId, taskId, date);
+    }
+
+    @Override
     public List<Long> findCompletedTaskIdsByUserAndDate(Long userId, LocalDate date) {
-        return springDataTaskProgressRepository.findCompletedTaskIdsByUserAndDate(userId, date);
+        return jpaRepository.findByUserIdAndTaskDateAndIsCompletedTrueAndIsDeletedFalse(userId, date)
+                .stream().map(TaskProgressEntity::getTaskId).toList();
+    }
+
+    @Override
+    public List<TaskProgressEntity> findByUserIdAndTaskDate(Long userId, LocalDate date) {
+        return jpaRepository.findByUserIdAndTaskDateAndIsDeletedFalse(userId, date);
+    }
+
+    @Override
+    public Optional<TaskProgressEntity> findByUserTaskAndDateIncludingDeleted(Long userId, Long taskId, LocalDate date) {
+        return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, date);
     }
 }

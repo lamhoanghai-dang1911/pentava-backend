@@ -11,9 +11,12 @@ public interface OnboardingInputPort {
     void getTasksByWeek(Integer weekNumber);
     void saveTaskProgressItems(Long taskId, TaskProgressRequestDTO requestDTO);
     void getTaskProgress(Long taskId);
-    void completeTaskProgress(Long taskId, TaskProgressRequestDTO requestDTO);
+    void completeTaskProgress(Long taskId);
 
     void selectMoodAndGetTasks(MoodSelectionRequestDTO requestDTO);
     void confirmDailyTasks(ConfirmDailyTasksRequestDTO requestDTO);
     void submitGoalRenewal(GoalRenewalRequestDTO requestDTO);
+    void getDailyTaskStatus(Long goalId);
+    void getCurrentGoal();
+    void swapDailyTask(SwapTaskRequestDTO requestDTO);
 }

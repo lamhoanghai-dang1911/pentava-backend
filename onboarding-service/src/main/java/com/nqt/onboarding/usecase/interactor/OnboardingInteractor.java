@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -221,6 +222,97 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .build());
     }
 
+    @Override
+    @Transactional
+    public void getDailyTaskStatus(Long goalId) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        requireActiveGoal(userId, goalId);
+
+        LocalDate today = today();
+        LocalDate yesterday = today.minusDays(1);
+
+        List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
+        boolean hasConfirmedToday = todayProgress.size() == REQUIRED_DAILY_TASKS;
+
+        List<TaskResponseDTO> todayTasks = List.of();
+        if (hasConfirmedToday) {
+            List<Long> ids = todayProgress.stream().map(TaskProgressEntity::getTaskId).toList();
+            List<TaskEntity> entities = taskRepository.findByIds(ids);
+
+            // ➕ lấy trạng thái completed thật từ user_task_daily, không dùng TaskEntity.isCompleted
+            java.util.Map<Long, Boolean> todayCompletedMap = todayProgress.stream()
+                    .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
+
+            todayTasks = entities.stream()
+                    .map(e -> {
+                        TaskResponseDTO dto = toTaskResponseDTO(e);
+                        dto.setIsCompleted(todayCompletedMap.getOrDefault(e.getId(), false));
+                        return dto;
+                    })
+                    .toList();
+        }
+
+        List<TaskProgressEntity> yesterdayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, yesterday);
+        boolean hasYesterdayTasks = !yesterdayProgress.isEmpty();
+
+        List<TaskResponseDTO> yesterdayTasks = List.of();
+        if (hasYesterdayTasks) {
+            List<Long> ids = yesterdayProgress.stream().map(TaskProgressEntity::getTaskId).toList();
+            List<TaskEntity> entities = taskRepository.findByIds(ids);
+            java.util.Map<Long, Boolean> completedMap = yesterdayProgress.stream()
+                    .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
+            yesterdayTasks = entities.stream()
+                    .map(e -> {
+                        TaskResponseDTO dto = toTaskResponseDTO(e);
+                        dto.setIsCompleted(completedMap.getOrDefault(e.getId(), false));
+                        return dto;
+                    })
+                    .toList();
+        }
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy trạng thái nhiệm vụ trong ngày thành công")
+                .dailyTaskStatus(DailyTaskStatusResponseDTO.builder()
+                        .hasConfirmedToday(hasConfirmedToday)
+                        .todayTasks(todayTasks)
+                        .hasYesterdayTasks(hasYesterdayTasks)
+                        .yesterdayTasks(yesterdayTasks)
+                        .build())
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void getCurrentGoal() {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        UserGoal goal = goalRepository.findByUserIdAndStatus(userId, GoalStatus.IN_PROGRESS)
+                .orElseThrow(() -> new BusinessException("Bạn chưa có mục tiêu nào đang thực hiện"));
+
+        if (goal.isExpired()) {
+            goal.setStatus(GoalStatus.COMPLETED);
+            goal.setCompletedAt(LocalDateTime.now());
+            goalRepository.save(goal);
+            throw new BusinessException("Mục tiêu đã hết hạn 4 tuần, vui lòng làm khảo sát lại");
+        }
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy mục tiêu hiện tại thành công")
+                .currentGoal(CurrentGoalResponseDTO.builder()
+                        .goalId(goal.getId())
+                        .goalName(goal.getGoalName())
+                        .status(goal.getStatus().name())
+                        .createdAt(goal.getCreatedAt())
+                        .expiresAt(goal.getExpiresAt())
+                        .build())
+                .build());
+    }
+
     @Transactional
     protected Long persistGoalRenewal(Long userId, String email, GoalRenewalRequestDTO dto, DiagnosticReportDTO diagnostic) {
         UserGoal newGoal = UserGoal.builder()
@@ -272,9 +364,9 @@ public class OnboardingInteractor implements OnboardingInputPort {
             throw new BusinessException("Mood không hợp lệ: " + requestDTO.getMoodType());
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
 
-        // Upsert mood selection trong ngày (nếu đổi ý chọn lại mood trong ngày thì ghi đè)
+        // Upsert mood selection trong ngày
         DailyMoodSelectionEntity moodEntity = moodSelectionRepository
                 .findByUserGoalAndDate(userId, goal.getId(), today)
                 .orElseGet(() -> DailyMoodSelectionEntity.builder()
@@ -286,11 +378,40 @@ public class OnboardingInteractor implements OnboardingInputPort {
         moodEntity.setComment(requestDTO.getComment());
         moodSelectionRepository.save(moodEntity);
 
-        List<TaskEntity> pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), mood);
-
         LocalDate yesterday = today.minusDays(1);
         List<Long> yesterdayTaskIds = taskProgressRepository.findCompletedTaskIdsByUserAndDate(userId, yesterday);
 
+        // ➕ Nếu hôm nay đã confirm đủ 5 task rồi -> chỉ trả về đúng 5 task đó (ẩn phần còn lại của pool)
+        List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
+        if (todayProgress.size() == REQUIRED_DAILY_TASKS) {
+            List<Long> confirmedIds = todayProgress.stream().map(TaskProgressEntity::getTaskId).toList();
+            List<TaskEntity> confirmedTasks = taskRepository.findByIds(confirmedIds);
+
+            // ➕ thêm map completed thật từ user_task_daily
+            java.util.Map<Long, Boolean> confirmedCompletedMap = todayProgress.stream()
+                    .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
+
+            List<TaskResponseDTO> confirmedDTOs = confirmedTasks.stream()
+                    .map(e -> {
+                        TaskResponseDTO dto = toTaskResponseDTO(e);
+                        dto.setIsCompleted(confirmedCompletedMap.getOrDefault(e.getId(), false));
+                        return dto;
+                    })
+                    .toList();
+
+            outputPort.present(OnboardingResponseDTO.builder()
+                    .message("Bạn đã chọn 5 nhiệm vụ cho hôm nay")
+                    .moodTaskResponse(MoodTaskResponseDTO.builder()
+                            .moodType(mood.name())
+                            .availableTasks(confirmedDTOs)
+                            .yesterdayTaskIds(yesterdayTaskIds)
+                            .build())
+                    .build());
+            return;
+        }
+
+        // Chưa confirm đủ 5 -> trả full pool theo mood để user chọn
+        List<TaskEntity> pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), mood);
         List<TaskResponseDTO> taskDTOs = pool.stream().map(this::toTaskResponseDTO).toList();
 
         outputPort.present(OnboardingResponseDTO.builder()
@@ -317,7 +438,7 @@ public class OnboardingInteractor implements OnboardingInputPort {
             throw new BusinessException("Phải chọn đúng " + REQUIRED_DAILY_TASKS + " nhiệm vụ");
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
 
         List<TaskProgressEntity> entries = selectedTaskIds.stream()
                 .map(taskId -> taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
@@ -489,26 +610,20 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
     @Override
     @Transactional
-    public void completeTaskProgress(Long taskId, TaskProgressRequestDTO requestDTO) {
+    public void completeTaskProgress(Long taskId) {
         String email = currentUserProvider.getCurrentUserEmail();
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = today(); // nhớ dùng today() VN nếu đã áp dụng, không thì LocalDate.now()
 
+        // ➕ Bắt buộc task này phải nằm trong 5 task đã confirm hôm nay
         TaskProgressEntity progress = taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
-                .orElseGet(() -> TaskProgressEntity.builder()
-                        .userId(userId)
-                        .taskId(taskId)
-                        .taskDate(today)
-                        .isCompleted(false)
-                        .build());
+                .orElseThrow(() -> new BusinessException(
+                        "Nhiệm vụ này không thuộc danh sách 5 nhiệm vụ đã chọn cho hôm nay"));
 
-        if (requestDTO != null && requestDTO.getSelectedItems() != null) {
-            String itemsStr = !requestDTO.getSelectedItems().isEmpty()
-                    ? String.join(",", requestDTO.getSelectedItems())
-                    : "";
-            progress.setSelectedItems(itemsStr);
+        if (Boolean.TRUE.equals(progress.getIsCompleted())) {
+            throw new BusinessException("Nhiệm vụ này đã được hoàn thành trước đó");
         }
 
         progress.setIsCompleted(true);
@@ -520,10 +635,100 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .taskId(taskId)
                         .taskDate(today)
                         .isCompleted(true)
-                        .selectedItems(progress.getSelectedItems() != null
-                                ? List.of(progress.getSelectedItems().split(","))
-                                : List.of())
                         .build())
                 .build());
+    }
+
+    @Override
+    @Transactional
+    public void swapDailyTask(SwapTaskRequestDTO requestDTO) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        UserGoal goal = requireActiveGoal(userId, requestDTO.getGoalId());
+
+        Long oldTaskId = requestDTO.getOldTaskId();
+        Long newTaskId = requestDTO.getNewTaskId();
+
+        if (oldTaskId.equals(newTaskId)) {
+            throw new BusinessException("Nhiệm vụ mới phải khác nhiệm vụ cũ");
+        }
+
+        LocalDate today = today();
+
+        // 1. Task cũ phải đang nằm trong danh sách hôm nay
+        TaskProgressEntity oldProgress = taskProgressRepository.findByUserTaskAndDate(userId, oldTaskId, today)
+                .orElseThrow(() -> new BusinessException("Nhiệm vụ cũ không thuộc danh sách hôm nay"));
+
+        // 2. Task đã hoàn thành thì không cho đổi
+        if (Boolean.TRUE.equals(oldProgress.getIsCompleted())) {
+            throw new BusinessException("Nhiệm vụ đã hoàn thành, không thể thay đổi");
+        }
+
+        // 3. Lấy mood đã chọn hôm nay
+        DailyMoodSelectionEntity moodSelection = moodSelectionRepository
+                .findByUserGoalAndDate(userId, goal.getId(), today)
+                .orElseThrow(() -> new BusinessException("Bạn chưa chọn cảm xúc cho hôm nay"));
+
+        // 4. Task mới phải thuộc pool cùng mood
+        List<TaskEntity> pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), moodSelection.getMoodType());
+        boolean newTaskInPool = pool.stream().anyMatch(t -> t.getId().equals(newTaskId));
+        if (!newTaskInPool) {
+            throw new BusinessException("Nhiệm vụ mới không thuộc bộ nhiệm vụ theo cảm xúc đã chọn");
+        }
+
+        // 5. Task mới không được trùng với 5 task hiện tại đang active của hôm nay
+        List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
+        boolean alreadySelected = todayProgress.stream().anyMatch(p -> p.getTaskId().equals(newTaskId));
+        if (alreadySelected) {
+            throw new BusinessException("Nhiệm vụ này đã có trong danh sách hôm nay");
+        }
+
+        // 6. Xoá mềm task cũ
+        oldProgress.setIsDeleted(true);
+        taskProgressRepository.save(oldProgress);
+
+        // 7. Task mới: nếu trước đó từng tồn tại (kể cả bị xóa mềm) -> restore & reset, không thì tạo mới
+        TaskProgressEntity newProgress = taskProgressRepository.findByUserTaskAndDateIncludingDeleted(userId, newTaskId, today)
+                .map(existing -> {
+                    existing.setIsDeleted(false);
+                    existing.setIsCompleted(false);
+                    return existing;
+                })
+                .orElseGet(() -> TaskProgressEntity.builder()
+                        .userId(userId)
+                        .taskId(newTaskId)
+                        .taskDate(today)
+                        .isCompleted(false)
+                        .isDeleted(false)
+                        .build());
+        taskProgressRepository.save(newProgress);
+
+        // 8. Lấy danh sách 5 task mới nhất sau khi swap để trả về cho client
+        List<TaskProgressEntity> updatedProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
+        List<Long> updatedIds = updatedProgress.stream().map(TaskProgressEntity::getTaskId).toList();
+        List<TaskEntity> updatedEntities = taskRepository.findByIds(updatedIds);
+
+        java.util.Map<Long, Boolean> completedMap = updatedProgress.stream()
+                .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
+
+        List<TaskResponseDTO> updatedTasks = updatedEntities.stream()
+                .map(e -> {
+                    TaskResponseDTO dto = toTaskResponseDTO(e);
+                    dto.setIsCompleted(completedMap.getOrDefault(e.getId(), false));
+                    return dto;
+                })
+                .toList();
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Đã thay đổi nhiệm vụ thành công")
+                .tasks(updatedTasks) // Hoặc đưa vào moodTaskResponse tùy theo DTO contract của bạn
+                .build());
+    }
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private LocalDate today() {
+        return LocalDate.now(VN_ZONE);
     }
 }

@@ -2,6 +2,9 @@ package com.nqt.onboarding.interfaceadapters.controller;
 
 import com.nqt.onboarding.interfaceadapters.presenter.OnboardingPresenter;
 import com.nqt.onboarding.usecase.boundary.OnboardingInputPort;
+import com.nqt.onboarding.usecase.dto.ConfirmDailyTasksRequestDTO;
+import com.nqt.onboarding.usecase.dto.MoodSelectionRequestDTO;
+import com.nqt.onboarding.usecase.dto.SwapTaskRequestDTO;
 import com.nqt.onboarding.usecase.dto.TaskProgressRequestDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -38,10 +41,38 @@ public class TaskController {
     }
 
     @PostMapping("/tasks/{taskId}/complete")
-    public ResponseEntity<?> completeTask(
-            @PathVariable("taskId") Long taskId,
-            @RequestBody(required = false) TaskProgressRequestDTO requestDTO) {
-        inputPort.completeTaskProgress(taskId, requestDTO);
+    public ResponseEntity<?> completeTask(@PathVariable("taskId") Long taskId) {
+        inputPort.completeTaskProgress(taskId);
+        return presenter.getResponseEntity();
+    }
+
+    @GetMapping("/tasks/daily-status")
+    public ResponseEntity<?> getDailyTaskStatus(@RequestParam("goalId") Long goalId) {
+        inputPort.getDailyTaskStatus(goalId);
+        return presenter.getResponseEntity();
+    }
+
+    @PostMapping("/mood/select")
+    public ResponseEntity<?> selectMoodAndGetTasks(@RequestBody MoodSelectionRequestDTO requestDTO) {
+        inputPort.selectMoodAndGetTasks(requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    @PostMapping("/tasks/confirm-daily")
+    public ResponseEntity<?> confirmDailyTasks(@RequestBody ConfirmDailyTasksRequestDTO requestDTO) {
+        inputPort.confirmDailyTasks(requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    @GetMapping("/goals/current")
+    public ResponseEntity<?> getCurrentGoal() {
+        inputPort.getCurrentGoal();
+        return presenter.getResponseEntity();
+    }
+
+    @PostMapping("/tasks/swap")
+    public ResponseEntity<?> swapDailyTask(@RequestBody SwapTaskRequestDTO requestDTO) {
+        inputPort.swapDailyTask(requestDTO);
         return presenter.getResponseEntity();
     }
 }

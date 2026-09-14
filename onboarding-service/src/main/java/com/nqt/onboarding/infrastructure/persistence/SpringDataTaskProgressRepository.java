@@ -16,4 +16,5 @@ public interface SpringDataTaskProgressRepository extends JpaRepository<TaskProg
 
     @Query("SELECT tp.taskId FROM TaskProgressEntity tp WHERE tp.userId = :userId AND tp.taskDate = :date AND tp.isCompleted = true")
     List<Long> findCompletedTaskIdsByUserAndDate(@Param("userId") Long userId, @Param("date") LocalDate date);
+
 }

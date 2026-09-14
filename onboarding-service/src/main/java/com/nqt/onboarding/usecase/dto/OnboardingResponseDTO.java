@@ -18,4 +18,6 @@ public class OnboardingResponseDTO {
     private TaskProgressResponseDTO taskProgress;
     private MoodTaskResponseDTO moodTaskResponse;
     private Long goalId;
+    private DailyTaskStatusResponseDTO dailyTaskStatus;
+    private CurrentGoalResponseDTO currentGoal;
 }

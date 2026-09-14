@@ -24,13 +24,13 @@ public class TaskProgressInteractor implements TaskProgressInputPort {
         Long userId = 1L; // Hoặc lấy từ Token / Security Context
         LocalDate today = LocalDate.now();
 
-        TaskProgressEntity entity = repositoryGateway.findByUserAndTaskAndDate(userId, taskId, today)
+        TaskProgressEntity entity = repositoryGateway.findByUserTaskAndDate(userId, taskId, today)
                 .orElseGet(() -> TaskProgressEntity.builder()
                         .userId(userId)
                         .taskId(taskId)
                         .taskDate(today)
                         .currentCount(0)
-                        .targetCount(5) // Mục tiêu mặc định là 5 khẩu phần
+                        .targetCount(5)
                         .isCompleted(false)
                         .build());
 
@@ -49,7 +49,7 @@ public class TaskProgressInteractor implements TaskProgressInputPort {
         Long userId = 1L;
         LocalDate today = LocalDate.now();
 
-        TaskProgressEntity entity = repositoryGateway.findByUserAndTaskAndDate(userId, taskId, today)
+        TaskProgressEntity entity = repositoryGateway.findByUserTaskAndDate(userId, taskId, today)
                 .orElseGet(() -> TaskProgressEntity.builder()
                         .userId(userId)
                         .taskId(taskId)
@@ -59,12 +59,11 @@ public class TaskProgressInteractor implements TaskProgressInputPort {
                         .isCompleted(false)
                         .build());
 
-        // Nếu chưa hoàn thành thì tăng tiến độ lên
         if (!entity.getIsCompleted()) {
             int newCount = entity.getCurrentCount() + 1;
             if (newCount >= entity.getTargetCount()) {
                 newCount = entity.getTargetCount();
-                entity.setIsCompleted(true); // Đạt mốc tối đa -> Tự động hoàn thành
+                entity.setIsCompleted(true);
             }
             entity.setCurrentCount(newCount);
             repositoryGateway.save(entity);

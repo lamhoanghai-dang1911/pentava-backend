@@ -1,5 +1,6 @@
 package com.nqt.onboarding.interfaceadapters.gateway;
 
+import com.nqt.onboarding.domain.GoalStatus;
 import com.nqt.onboarding.domain.UserGoal;
 import com.nqt.onboarding.infrastructure.persistence.UserGoalEntity;
 import com.nqt.onboarding.usecase.boundary.UserGoalRepositoryGateway;
@@ -22,6 +23,11 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
     @Override
     public Optional<UserGoal> findById(Long id) {
         return jpaRepository.findById(id).map(this::toDomain);
+    }
+
+    @Override
+    public Optional<UserGoal> findByUserIdAndStatus(Long userId, GoalStatus status) {
+        return jpaRepository.findByUserIdAndStatus(userId, status).map(this::toDomain);
     }
 
     @Override

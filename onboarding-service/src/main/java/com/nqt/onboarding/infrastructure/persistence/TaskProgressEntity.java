@@ -2,6 +2,7 @@ package com.nqt.onboarding.infrastructure.persistence;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 
 @Entity
@@ -32,7 +33,6 @@ public class TaskProgressEntity {
     @Builder.Default
     private Boolean isCompleted = false;
 
-    // ➕ Phải có 2 trường này để Interactor gọi được get/set/builder
     @Column(name = "current_count", nullable = false)
     @Builder.Default
     private Integer currentCount = 0;
@@ -43,4 +43,8 @@ public class TaskProgressEntity {
 
     @Column(name = "selected_items", columnDefinition = "TEXT")
     private String selectedItems;
+
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private Boolean isDeleted = false; // ➕ mới — xoá mềm khi swap task
 }

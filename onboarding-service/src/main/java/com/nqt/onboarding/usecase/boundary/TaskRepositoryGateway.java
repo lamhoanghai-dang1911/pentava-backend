@@ -7,5 +7,6 @@ import java.util.List;
 public interface TaskRepositoryGateway {
     void saveAll(List<TaskEntity> tasks);
     List<TaskEntity> findTasksForUserAndWeek(Long userId, Integer weekNumber);
-    List<TaskEntity> findByUserIdAndGoalIdAndMoodType(Long userId, Long goalId, MoodType moodType); // ➕ mới
+    List<TaskEntity> findByUserIdAndGoalIdAndMoodType(Long userId, Long goalId, MoodType moodType);
+    List<TaskEntity> findByIds(List<Long> taskIds); // ➕ mới, dùng để build lại TaskResponseDTO từ danh sách taskId đã chọn
 }

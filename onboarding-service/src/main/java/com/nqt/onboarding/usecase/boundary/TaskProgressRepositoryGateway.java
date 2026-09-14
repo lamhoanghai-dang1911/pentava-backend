@@ -6,10 +6,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TaskProgressRepositoryGateway {
-    Optional<TaskProgressEntity> findByUserAndTaskAndDate(Long userId, Long taskId, LocalDate date);
-
-    Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date);
-
     TaskProgressEntity save(TaskProgressEntity entity);
+    Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date);
     List<Long> findCompletedTaskIdsByUserAndDate(Long userId, LocalDate date);
+    List<TaskProgressEntity> findByUserIdAndTaskDate(Long userId, LocalDate date);
+    Optional<TaskProgressEntity> findByUserTaskAndDateIncludingDeleted(Long userId, Long taskId, LocalDate date); // ➕ mới, dùng cho swap/restore
 }
