@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -12,7 +13,7 @@ import java.util.Optional;
 public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepositoryGateway {
 
     private final TaskProgressJpaRepository jpaRepository;
-
+    private final SpringDataTaskProgressRepository springDataTaskProgressRepository;
     @Override
     public Optional<TaskProgressEntity> findByUserAndTaskAndDate(Long userId, Long taskId, LocalDate date) {
         return jpaRepository.findByUserIdAndTaskIdAndTaskDate(userId, taskId, date);
@@ -26,5 +27,10 @@ public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepository
     @Override
     public TaskProgressEntity save(TaskProgressEntity entity) {
         return jpaRepository.save(entity);
+    }
+
+    @Override
+    public List<Long> findCompletedTaskIdsByUserAndDate(Long userId, LocalDate date) {
+        return springDataTaskProgressRepository.findCompletedTaskIdsByUserAndDate(userId, date);
     }
 }

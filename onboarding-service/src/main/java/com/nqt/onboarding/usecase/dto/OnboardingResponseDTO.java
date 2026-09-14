@@ -16,4 +16,6 @@ public class OnboardingResponseDTO {
     private DiagnosticReportDTO diagnostic;
     private List<TaskResponseDTO> tasks;
     private TaskProgressResponseDTO taskProgress;
+    private MoodTaskResponseDTO moodTaskResponse;
+    private Long goalId;
 }

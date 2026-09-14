@@ -1,13 +1,17 @@
 package com.nqt.onboarding.interfaceadapters.presenter;
 
 import com.nqt.onboarding.usecase.boundary.OnboardingOutputPort;
+import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.util.Map;
 
 @Component
+@Scope(value = WebApplicationContext.SCOPE_REQUEST, proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class OnboardingPresenter implements OnboardingOutputPort {
     private ResponseEntity<?> responseEntity;
 

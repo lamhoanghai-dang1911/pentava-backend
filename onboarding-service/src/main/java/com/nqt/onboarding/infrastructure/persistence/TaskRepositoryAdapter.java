@@ -21,4 +21,9 @@ public class TaskRepositoryAdapter implements TaskRepositoryGateway {
     public List<TaskEntity> findTasksForUserAndWeek(Long userId, Integer weekNumber) {
         return springDataTaskRepository.findTasksForUserAndWeek(userId, weekNumber);
     }
+
+    @Override
+    public List<TaskEntity> findByUserIdAndGoalIdAndMoodType(Long userId, Long goalId, MoodType moodType) {
+        return springDataTaskRepository.findByUserIdAndGoalIdAndMoodType(userId, goalId, moodType);
+    }
 }

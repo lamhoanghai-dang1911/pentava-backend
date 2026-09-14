@@ -25,6 +25,7 @@ public class GroqDiagnosticService {
 
     private static final Logger logger = LoggerFactory.getLogger(GroqDiagnosticService.class);
     private static final String GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+    private static final int TASKS_PER_MOOD = 20;
 
     private final GroqConfig groqConfig;
     private final OkHttpClient httpClient;
@@ -36,23 +37,19 @@ public class GroqDiagnosticService {
         this.gson = new Gson();
     }
 
-    /**
-     * Phân tích onboarding answers và trả về diagnostic report
-     */
     public DiagnosticReportDTO analyzeDiagnostic(OnboardingAnswerDTO answers) {
         try {
             String prompt = buildDiagnosticPrompt(answers);
             String groqResponse = callGroqAPI(prompt);
-            return parseDiagnosticResponse(groqResponse);
+            DiagnosticReportDTO result = parseDiagnosticResponse(groqResponse);
+            validateTaskCounts(result);
+            return result;
         } catch (IOException e) {
             logger.error("Groq API call failed: ", e);
             throw new RuntimeException("Failed to analyze diagnostic", e);
         }
     }
 
-    /**
-     * Build prompt cho Groq LLM
-     */
     private String buildDiagnosticPrompt(OnboardingAnswerDTO answers) {
         return String.format("""
         You are a health and wellness diagnostic AI. Analyze the following user health profile and provide a diagnostic report in JSON format.
@@ -71,11 +68,15 @@ public class GroqDiagnosticService {
         - Free Time Slots: %s
 
         IMPORTANT RULES:
-        1. The user's primary goal is "%s". Focus your analysis and 4-week action plan EXCLUSIVELY on this specific goal.
-        2. Provide ONLY ONE "actionPlans" object, but inside its "actions" array, you MUST generate EXACTLY 8 tasks in total to cover the 4 weeks (meaning 2 tasks per week: 2 tasks for Week 1, 2 tasks for Week 2, 2 tasks for Week 3, and 2 tasks for Week 4).
-        3. CRITICAL: The "content" field for each action must be CLEAN, short, and SPECIFIC. DO NOT include prefixes like "Week 1:", "Tuần 1:", or numbering inside the content text.
-        4. Do NOT generate recommendedGoals (keep the array empty or omit it).
-        5. Return ONLY valid JSON (no markdown, no code blocks).
+        1. The user's primary goal is "%s". Focus your analysis and 4-week plan EXCLUSIVELY on this specific goal.
+        2. Generate EXACTLY 60 tasks total, split into 3 mood-based sets, EXACTLY 20 tasks per set:
+           - "badTasks": 20 easy, low-effort, comforting micro-actions suitable for a day the user feels bad/low energy.
+           - "neutralTasks": 20 medium-effort actions suitable for an average/neutral day.
+           - "goodTasks": 20 more ambitious/challenging actions suitable for a day the user feels good/high energy.
+        3. Each set of 20 tasks should span 4 weeks of practice (roughly 5 tasks per week difficulty-appropriate), but do NOT include week numbers or prefixes in the text.
+        4. CRITICAL: Each task text must be CLEAN, short, specific, actionable, written in Vietnamese, with NO numbering or prefixes like "Tuần 1:", "Task 1:".
+        5. Do NOT generate recommendedGoals (keep the array empty or omit it).
+        6. Return ONLY valid JSON (no markdown, no code blocks).
 
         Structure:
         {
@@ -84,22 +85,13 @@ public class GroqDiagnosticService {
             "topIssues": ["issue1", "issue2"],
             "recommendedGoals": [],
             "summary": "<analysis in Vietnamese focused strictly on their primary goal>",
-            "actionPlans": [
-                {
-                    "goal": "%s",
-                    "description": "<why this matters for the primary goal>",
-                    "actions": [
-                        "Task 1 for week 1 (pure text)",
-                        "Task 2 for week 1 (pure text)",
-                        "Task 1 for week 2 (pure text)",
-                        "Task 2 for week 2 (pure text)",
-                        "Task 1 for week 3 (pure text)",
-                        "Task 2 for week 3 (pure text)",
-                        "Task 1 for week 4 (pure text)",
-                        "Task 2 for week 4 (pure text)"
-                    ]
-                }
-            ]
+            "moodTaskPlan": {
+                "goal": "%s",
+                "description": "<why this matters for the primary goal>",
+                "badTasks": ["...", "... (exactly 20 items)"],
+                "neutralTasks": ["...", "... (exactly 20 items)"],
+                "goodTasks": ["...", "... (exactly 20 items)"]
+            }
         }
 
         Return ONLY JSON, nothing else.
@@ -120,23 +112,17 @@ public class GroqDiagnosticService {
         );
     }
 
-    /**
-     * Call Groq API
-     */
     private String callGroqAPI(String userPrompt) throws IOException {
-        // Build message
         JsonObject message = new JsonObject();
         message.addProperty("role", "user");
         message.addProperty("content", userPrompt);
 
-        // Build request body
         JsonObject requestBody = new JsonObject();
         requestBody.addProperty("model", groqConfig.getModel());
         requestBody.add("messages", gson.toJsonTree(new Object[]{message}));
         requestBody.addProperty("temperature", 0.7);
-        requestBody.addProperty("max_tokens", 2000);
+        requestBody.addProperty("max_tokens", 4000); // tăng vì output lớn hơn hẳn (60 task)
 
-        // Create HTTP request
         Request request = new Request.Builder()
                 .url(GROQ_API_URL)
                 .addHeader("Authorization", "Bearer " + groqConfig.getApiKey())
@@ -147,7 +133,6 @@ public class GroqDiagnosticService {
                 ))
                 .build();
 
-        // Execute request
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String errorBody = response.body() != null ? response.body().string() : "Unknown error";
@@ -158,7 +143,6 @@ public class GroqDiagnosticService {
             String responseBody = response.body().string();
             logger.debug("Groq API response: {}", responseBody);
 
-            // Parse response
             JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
             return jsonResponse.getAsJsonArray("choices")
                     .get(0).getAsJsonObject()
@@ -167,12 +151,8 @@ public class GroqDiagnosticService {
         }
     }
 
-    /**
-     * Parse Groq response thành DiagnosticReportDTO
-     */
     private DiagnosticReportDTO parseDiagnosticResponse(String groqResponse) {
         try {
-            // Clean response (remove markdown if exists)
             String cleanedResponse = groqResponse
                     .replaceAll("```json", "")
                     .replaceAll("```", "")
@@ -180,46 +160,20 @@ public class GroqDiagnosticService {
 
             JsonObject json = JsonParser.parseString(cleanedResponse).getAsJsonObject();
 
-            // Parse action plans
-            List<DiagnosticReportDTO.ActionPlanDTO> actionPlans = new ArrayList<>();
-            if (json.has("actionPlans") && json.get("actionPlans").isJsonArray()) {
-                JsonArray plansArray = json.getAsJsonArray("actionPlans");
-                for (int i = 0; i < plansArray.size(); i++) {
-                    JsonObject planObj = plansArray.get(i).getAsJsonObject();
-                    List<String> actions = new ArrayList<>();
-
-                    if (planObj.has("actions") && planObj.get("actions").isJsonArray()) {
-                        JsonArray actionsArray = planObj.getAsJsonArray("actions");
-                        for (int j = 0; j < actionsArray.size(); j++) {
-                            actions.add(actionsArray.get(j).getAsString());
-                        }
-                    }
-
-                    actionPlans.add(DiagnosticReportDTO.ActionPlanDTO.builder()
-                            .goal(planObj.get("goal").getAsString())
-                            .description(planObj.get("description").getAsString())
-                            .actions(actions)
-                            .build());
-                }
+            DiagnosticReportDTO.MoodTaskPlanDTO moodTaskPlan = null;
+            if (json.has("moodTaskPlan") && json.get("moodTaskPlan").isJsonObject()) {
+                JsonObject planObj = json.getAsJsonObject("moodTaskPlan");
+                moodTaskPlan = DiagnosticReportDTO.MoodTaskPlanDTO.builder()
+                        .goal(getAsStringOrNull(planObj, "goal"))
+                        .description(getAsStringOrNull(planObj, "description"))
+                        .badTasks(extractStringArray(planObj, "badTasks"))
+                        .neutralTasks(extractStringArray(planObj, "neutralTasks"))
+                        .goodTasks(extractStringArray(planObj, "goodTasks"))
+                        .build();
             }
 
-            // Parse top issues
-            List<String> topIssues = new ArrayList<>();
-            if (json.has("topIssues") && json.get("topIssues").isJsonArray()) {
-                JsonArray issuesArray = json.getAsJsonArray("topIssues");
-                for (int i = 0; i < issuesArray.size(); i++) {
-                    topIssues.add(issuesArray.get(i).getAsString());
-                }
-            }
-
-            // Parse recommended goals
-            List<String> recommendedGoals = new ArrayList<>();
-            if (json.has("recommendedGoals") && json.get("recommendedGoals").isJsonArray()) {
-                JsonArray goalsArray = json.getAsJsonArray("recommendedGoals");
-                for (int i = 0; i < goalsArray.size(); i++) {
-                    recommendedGoals.add(goalsArray.get(i).getAsString());
-                }
-            }
+            List<String> topIssues = extractStringArray(json, "topIssues");
+            List<String> recommendedGoals = extractStringArray(json, "recommendedGoals");
 
             return DiagnosticReportDTO.builder()
                     .overallScore(json.get("overallScore").getAsDouble())
@@ -227,12 +181,48 @@ public class GroqDiagnosticService {
                     .topIssues(topIssues)
                     .recommendedGoals(recommendedGoals)
                     .summary(json.get("summary").getAsString())
-                    .actionPlans(actionPlans)
+                    .moodTaskPlan(moodTaskPlan)
                     .build();
 
         } catch (Exception e) {
             logger.error("Failed to parse Groq response: {}", groqResponse, e);
             throw new RuntimeException("Failed to parse diagnostic response", e);
+        }
+    }
+
+    private List<String> extractStringArray(JsonObject parent, String key) {
+        List<String> result = new ArrayList<>();
+        if (parent.has(key) && parent.get(key).isJsonArray()) {
+            JsonArray arr = parent.getAsJsonArray(key);
+            for (int i = 0; i < arr.size(); i++) {
+                result.add(arr.get(i).getAsString());
+            }
+        }
+        return result;
+    }
+
+    private String getAsStringOrNull(JsonObject obj, String key) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsString() : null;
+    }
+
+    /**
+     * Validate đủ 20 task/mood. Nếu thiếu -> ném lỗi để tầng trên xử lý fallback/retry,
+     * tránh lưu DB thiếu task mà không hay biết.
+     */
+    private void validateTaskCounts(DiagnosticReportDTO result) {
+        DiagnosticReportDTO.MoodTaskPlanDTO plan = result.getMoodTaskPlan();
+        if (plan == null) {
+            throw new RuntimeException("Groq response thiếu moodTaskPlan");
+        }
+        if (plan.getBadTasks() == null || plan.getBadTasks().size() != TASKS_PER_MOOD
+                || plan.getNeutralTasks() == null || plan.getNeutralTasks().size() != TASKS_PER_MOOD
+                || plan.getGoodTasks() == null || plan.getGoodTasks().size() != TASKS_PER_MOOD) {
+            throw new RuntimeException(String.format(
+                    "Groq không trả đủ %d task/mood. bad=%d, neutral=%d, good=%d",
+                    TASKS_PER_MOOD,
+                    plan.getBadTasks() != null ? plan.getBadTasks().size() : 0,
+                    plan.getNeutralTasks() != null ? plan.getNeutralTasks().size() : 0,
+                    plan.getGoodTasks() != null ? plan.getGoodTasks().size() : 0));
         }
     }
 }

@@ -30,4 +30,25 @@ public class OnboardingController {
         inputPort.progressToNextGoal(requestDTO);
         return presenter.getResponseEntity();
     }
+
+    // ➕ Chọn mood trong ngày -> trả về 20 task tương ứng
+    @PostMapping("/mood-selection")
+    public ResponseEntity<?> selectMood(@Valid @RequestBody MoodSelectionRequestDTO requestDTO) {
+        inputPort.selectMoodAndGetTasks(requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    // ➕ Xác nhận đúng 5 task cho hôm nay
+    @PostMapping("/confirm-tasks")
+    public ResponseEntity<?> confirmTasks(@Valid @RequestBody ConfirmDailyTasksRequestDTO requestDTO) {
+        inputPort.confirmDailyTasks(requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    // ➕ Khảo sát lại sau khi hoàn thành goal 4 tuần
+    @PostMapping("/goal-renewal")
+    public ResponseEntity<?> renewGoal(@Valid @RequestBody GoalRenewalRequestDTO requestDTO) {
+        inputPort.submitGoalRenewal(requestDTO);
+        return presenter.getResponseEntity();
+    }
 }

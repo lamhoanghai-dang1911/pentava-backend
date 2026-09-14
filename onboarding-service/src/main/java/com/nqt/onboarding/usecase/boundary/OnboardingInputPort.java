@@ -1,10 +1,7 @@
 package com.nqt.onboarding.usecase.boundary;
 //package com.nqt.onboarding.usecase.boundary;
 
-import com.nqt.onboarding.usecase.dto.OnboardingRequestDTO;
-import com.nqt.onboarding.usecase.dto.GoalProgressionRequestDTO;
-import com.nqt.onboarding.usecase.dto.TaskProgressRequestDTO;
-import com.nqt.onboarding.usecase.dto.TaskResponseDTO;
+import com.nqt.onboarding.usecase.dto.*;
 
 import java.util.List;
 
@@ -15,4 +12,8 @@ public interface OnboardingInputPort {
     void saveTaskProgressItems(Long taskId, TaskProgressRequestDTO requestDTO);
     void getTaskProgress(Long taskId);
     void completeTaskProgress(Long taskId, TaskProgressRequestDTO requestDTO);
+
+    void selectMoodAndGetTasks(MoodSelectionRequestDTO requestDTO);
+    void confirmDailyTasks(ConfirmDailyTasksRequestDTO requestDTO);
+    void submitGoalRenewal(GoalRenewalRequestDTO requestDTO);
 }

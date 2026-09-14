@@ -1,5 +1,5 @@
 package com.nqt.onboarding.interfaceadapters.gateway;
-//package com.nqt.onboarding.interfaceadapters.gateway;
+
 import com.nqt.onboarding.infrastructure.persistence.UserGoalEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;

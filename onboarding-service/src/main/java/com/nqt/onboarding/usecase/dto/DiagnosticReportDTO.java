@@ -11,20 +11,22 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DiagnosticReportDTO {
-    private double overallScore;              // 1-10
-    private String healthStatus;              // "excellent / good / fair / poor / critical"
-    private List<String> topIssues;           // ["High stress", "Poor sleep", ...]
-    private List<String> recommendedGoals;    // ["Reduce stress", "Improve sleep", ...]
-    private String summary;                   // Chi tiết phân tích
-    private List<ActionPlanDTO> actionPlans;  // Plan cho mỗi goal
+    private double overallScore;
+    private String healthStatus;
+    private List<String> topIssues;
+    private List<String> recommendedGoals;
+    private String summary;
+    private MoodTaskPlanDTO moodTaskPlan; // thay thế actionPlans
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ActionPlanDTO {
+    public static class MoodTaskPlanDTO {
         private String goal;
         private String description;
-        private List<String> actions;         // ["Week 1-2: ...", "Week 3-4: ...", ...]
+        private List<String> badTasks;     // đúng 20
+        private List<String> neutralTasks; // đúng 20
+        private List<String> goodTasks;    // đúng 20
     }
 }

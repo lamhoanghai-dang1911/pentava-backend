@@ -20,6 +20,11 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
     }
 
     @Override
+    public Optional<UserGoal> findById(Long id) {
+        return jpaRepository.findById(id).map(this::toDomain);
+    }
+
+    @Override
     public UserGoal save(UserGoal goal) {
         UserGoalEntity saved = jpaRepository.save(toEntity(goal));
         return toDomain(saved);
@@ -28,7 +33,7 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
     private UserGoal toDomain(UserGoalEntity entity) {
         return UserGoal.builder()
                 .id(entity.getId())
-                .userId(entity.getUserId()) // ➕ Bổ sung map userId
+                .userId(entity.getUserId())
                 .userEmail(entity.getUserEmail())
                 .goalName(entity.getGoalName())
                 .status(entity.getStatus())
@@ -40,7 +45,7 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
     private UserGoalEntity toEntity(UserGoal domain) {
         return UserGoalEntity.builder()
                 .id(domain.getId())
-                .userId(domain.getUserId()) // ➕ Bổ sung map userId
+                .userId(domain.getUserId())
                 .userEmail(domain.getUserEmail())
                 .goalName(domain.getGoalName())
                 .status(domain.getStatus())

@@ -12,4 +12,5 @@ public class TaskResponseDTO {
     private Integer weekNumber;
     private Boolean isAiGenerated;
     private Boolean isCompleted;
+    private String moodType; // ➕ mới, để FE biết task thuộc mood nào
 }

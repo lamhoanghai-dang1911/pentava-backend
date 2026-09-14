@@ -14,4 +14,14 @@ public class UserGoal {
     private GoalStatus status;
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;
+
+    public LocalDateTime getExpiresAt() {
+        return createdAt != null ? createdAt.plusWeeks(4) : null;
+    }
+
+    public boolean isExpired() {
+        return status == GoalStatus.IN_PROGRESS
+                && getExpiresAt() != null
+                && LocalDateTime.now().isAfter(getExpiresAt());
+    }
 }

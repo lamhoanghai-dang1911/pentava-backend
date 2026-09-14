@@ -2,6 +2,7 @@ package com.nqt.onboarding.usecase.boundary;
 
 import com.nqt.onboarding.infrastructure.persistence.TaskProgressEntity;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface TaskProgressRepositoryGateway {
@@ -10,4 +11,5 @@ public interface TaskProgressRepositoryGateway {
     Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date);
 
     TaskProgressEntity save(TaskProgressEntity entity);
+    List<Long> findCompletedTaskIdsByUserAndDate(Long userId, LocalDate date);
 }

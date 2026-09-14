@@ -11,4 +11,6 @@ import java.util.List;
 public interface SpringDataTaskRepository extends JpaRepository<TaskEntity, Long> {
     @Query("SELECT t FROM TaskEntity t WHERE t.userId = :userId AND (t.weekNumber IS NULL OR t.weekNumber = :weekNumber)")
     List<TaskEntity> findTasksForUserAndWeek(@Param("userId") Long userId, @Param("weekNumber") Integer weekNumber);
+
+    List<TaskEntity> findByUserIdAndGoalIdAndMoodType(Long userId, Long goalId, MoodType moodType); // ➕ mới
 }
