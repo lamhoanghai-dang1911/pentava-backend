@@ -804,6 +804,62 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .build());
     }
 
+    @Override
+    @Transactional
+    public void getTaskHistory(LocalDate startDate, LocalDate endDate) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        if (startDate.isAfter(endDate)) {
+            throw new BusinessException("startDate phải trước hoặc bằng endDate");
+        }
+
+        List<TaskProgressEntity> progressList = taskProgressRepository.findByUserIdAndDateRange(userId, startDate, endDate);
+
+        if (progressList.isEmpty()) {
+            outputPort.present(OnboardingResponseDTO.builder()
+                    .message("Không có dữ liệu nhiệm vụ trong khoảng thời gian này")
+                    .taskHistory(List.of())
+                    .build());
+            return;
+        }
+
+        List<Long> taskIds = progressList.stream().map(TaskProgressEntity::getTaskId).distinct().toList();
+        List<TaskEntity> taskEntities = taskRepository.findByIds(taskIds);
+        java.util.Map<Long, TaskEntity> taskEntityMap = taskEntities.stream()
+                .collect(java.util.stream.Collectors.toMap(TaskEntity::getId, e -> e));
+
+        // Gộp theo taskDate
+        java.util.Map<LocalDate, List<TaskProgressEntity>> groupedByDate = progressList.stream()
+                .collect(java.util.stream.Collectors.groupingBy(TaskProgressEntity::getTaskDate));
+
+        List<DailyTaskHistoryDTO> history = groupedByDate.entrySet().stream()
+                .sorted(java.util.Map.Entry.<LocalDate, List<TaskProgressEntity>>comparingByKey().reversed())
+                .map(entry -> {
+                    List<TaskResponseDTO> tasks = entry.getValue().stream()
+                            .map(p -> {
+                                TaskEntity taskEntity = taskEntityMap.get(p.getTaskId());
+                                if (taskEntity == null) return null;
+                                TaskResponseDTO dto = toTaskResponseDTO(taskEntity);
+                                dto.setIsCompleted(p.getIsCompleted());
+                                return dto;
+                            })
+                            .filter(java.util.Objects::nonNull)
+                            .toList();
+                    return DailyTaskHistoryDTO.builder()
+                            .taskDate(entry.getKey())
+                            .tasks(tasks)
+                            .build();
+                })
+                .toList();
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy lịch sử nhiệm vụ thành công")
+                .taskHistory(history)
+                .build());
+    }
+
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private LocalDate today() {

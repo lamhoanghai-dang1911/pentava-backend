@@ -7,8 +7,11 @@ import com.nqt.onboarding.usecase.dto.MoodSelectionRequestDTO;
 import com.nqt.onboarding.usecase.dto.SwapTaskRequestDTO;
 import com.nqt.onboarding.usecase.dto.TaskProgressRequestDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/onboarding")
@@ -79,6 +82,14 @@ public class TaskController {
     @GetMapping("/streak/current")
     public ResponseEntity<?> getCurrentStreak() {
         inputPort.getCurrentStreak();
+        return presenter.getResponseEntity();
+    }
+
+    @GetMapping("/tasks/history")
+    public ResponseEntity<?> getTaskHistory(
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        inputPort.getTaskHistory(startDate, endDate);
         return presenter.getResponseEntity();
     }
 }

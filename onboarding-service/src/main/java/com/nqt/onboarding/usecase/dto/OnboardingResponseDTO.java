@@ -21,4 +21,5 @@ public class OnboardingResponseDTO {
     private DailyTaskStatusResponseDTO dailyTaskStatus;
     private CurrentGoalResponseDTO currentGoal;
     private StreakResponseDTO streak;
+    private List<DailyTaskHistoryDTO> taskHistory;
 }

@@ -11,4 +11,5 @@ public interface TaskProgressRepositoryGateway {
     List<Long> findCompletedTaskIdsByUserAndDate(Long userId, LocalDate date);
     List<TaskProgressEntity> findByUserIdAndTaskDate(Long userId, LocalDate date);
     Optional<TaskProgressEntity> findByUserTaskAndDateIncludingDeleted(Long userId, Long taskId, LocalDate date); // ➕ mới, dùng cho swap/restore
+    List<TaskProgressEntity> findByUserIdAndDateRange(Long userId, LocalDate startDate, LocalDate endDate);
 }

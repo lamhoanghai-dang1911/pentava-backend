@@ -3,6 +3,7 @@ package com.nqt.onboarding.usecase.boundary;
 
 import com.nqt.onboarding.usecase.dto.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface OnboardingInputPort {
@@ -20,4 +21,5 @@ public interface OnboardingInputPort {
     void getCurrentGoal();
     void swapDailyTask(SwapTaskRequestDTO requestDTO);
     void getCurrentStreak();
+    void getTaskHistory(LocalDate startDate, LocalDate endDate);
 }

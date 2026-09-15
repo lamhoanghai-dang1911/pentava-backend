@@ -16,4 +16,6 @@ public interface TaskProgressJpaRepository extends JpaRepository<TaskProgressEnt
     List<TaskProgressEntity> findByUserIdAndTaskDateAndIsCompletedTrueAndIsDeletedFalse(Long userId, LocalDate taskDate);
 
     List<TaskProgressEntity> findByUserIdAndTaskDateAndIsDeletedFalse(Long userId, LocalDate taskDate);
+    List<TaskProgressEntity> findByUserIdAndTaskDateBetweenAndIsDeletedFalseOrderByTaskDateDesc(
+            Long userId, LocalDate startDate, LocalDate endDate);
 }
