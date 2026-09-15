@@ -15,20 +15,18 @@ public class CheckinController {
     private final CheckinInputPort inputPort;
     private final CheckinPresenter presenter;
 
-    // 1. API POST: Lưu URL ảnh check-in từ Supabase do Frontend gửi lên
-    @PostMapping("/tasks/{taskId}")
+    @PostMapping("/task-progress/{taskProgressId}")
     public ResponseEntity<?> saveCheckinImage(
-            @PathVariable("taskId") Long taskId,
+            @PathVariable("taskProgressId") Long taskProgressId,
             @RequestBody CheckinRequestDTO requestDTO) {
-        inputPort.saveCheckinImageUrl(taskId, requestDTO);
+        inputPort.saveCheckinImageUrl(taskProgressId, requestDTO);
         return presenter.getResponseEntity();
     }
 
-    // 2. API GET: Lấy thông tin ảnh check-in của task trong ngày hiện tại
-    @GetMapping("/tasks/{taskId}")
+    @GetMapping("/task-progress/{taskProgressId}")
     public ResponseEntity<?> getCheckinImage(
-            @PathVariable("taskId") Long taskId) {
-        inputPort.getCheckinByTask(taskId);
+            @PathVariable("taskProgressId") Long taskProgressId) {
+        inputPort.getCheckinByTask(taskProgressId);
         return presenter.getResponseEntity();
     }
 }

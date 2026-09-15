@@ -75,4 +75,10 @@ public class TaskController {
         inputPort.swapDailyTask(requestDTO);
         return presenter.getResponseEntity();
     }
+
+    @GetMapping("/streak/current")
+    public ResponseEntity<?> getCurrentStreak() {
+        inputPort.getCurrentStreak();
+        return presenter.getResponseEntity();
+    }
 }

@@ -20,4 +20,5 @@ public class OnboardingResponseDTO {
     private Long goalId;
     private DailyTaskStatusResponseDTO dailyTaskStatus;
     private CurrentGoalResponseDTO currentGoal;
+    private StreakResponseDTO streak;
 }

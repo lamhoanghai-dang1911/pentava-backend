@@ -2,10 +2,7 @@ package com.nqt.onboarding.usecase.interactor;
 
 import com.nqt.onboarding.domain.*;
 import com.nqt.onboarding.infrastructure.groq.GroqDiagnosticService;
-import com.nqt.onboarding.infrastructure.persistence.DailyMoodSelectionEntity;
-import com.nqt.onboarding.infrastructure.persistence.MoodType;
-import com.nqt.onboarding.infrastructure.persistence.TaskEntity;
-import com.nqt.onboarding.infrastructure.persistence.TaskProgressEntity;
+import com.nqt.onboarding.infrastructure.persistence.*;
 import com.nqt.onboarding.infrastructure.security.CurrentUserProvider;
 import com.nqt.onboarding.usecase.boundary.*;
 import com.nqt.onboarding.usecase.dto.*;
@@ -41,6 +38,7 @@ public class OnboardingInteractor implements OnboardingInputPort {
     private final GroqDiagnosticService groqDiagnosticService;
     private final TaskProgressRepositoryGateway taskProgressRepository;
     private final DailyMoodSelectionRepositoryGateway moodSelectionRepository;
+    private final UserStreakRepositoryGateway streakRepository;
 
     // ==========================================
     // ONBOARDING LẦN ĐẦU
@@ -615,9 +613,8 @@ public class OnboardingInteractor implements OnboardingInputPort {
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
-        LocalDate today = today(); // nhớ dùng today() VN nếu đã áp dụng, không thì LocalDate.now()
+        LocalDate today = today();
 
-        // ➕ Bắt buộc task này phải nằm trong 5 task đã confirm hôm nay
         TaskProgressEntity progress = taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
                 .orElseThrow(() -> new BusinessException(
                         "Nhiệm vụ này không thuộc danh sách 5 nhiệm vụ đã chọn cho hôm nay"));
@@ -629,6 +626,9 @@ public class OnboardingInteractor implements OnboardingInputPort {
         progress.setIsCompleted(true);
         taskProgressRepository.save(progress);
 
+        // ➕ Kiểm tra nếu đây là task thứ 5/5 hoàn thành trong ngày -> cập nhật streak
+        updateStreakIfAllTasksCompleted(userId, today);
+
         outputPort.present(OnboardingResponseDTO.builder()
                 .message("Chúc mừng! Bạn đã hoàn thành nhiệm vụ")
                 .taskProgress(TaskProgressResponseDTO.builder()
@@ -637,6 +637,49 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .isCompleted(true)
                         .build())
                 .build());
+    }
+
+    /**
+     * Kiểm tra nếu user đã hoàn thành đủ 5/5 task hôm nay (và đủ 5 task được chọn - không tính task bị xoá mềm).
+     * Nếu đủ điều kiện và streak chưa được cập nhật cho ngày hôm nay -> tăng/reset streak.
+     */
+    private void updateStreakIfAllTasksCompleted(Long userId, LocalDate today) {
+        List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
+
+        boolean fullSetSelected = todayProgress.size() == REQUIRED_DAILY_TASKS;
+        boolean allCompleted = todayProgress.stream().allMatch(TaskProgressEntity::getIsCompleted);
+
+        if (!fullSetSelected || !allCompleted) {
+            return; // chưa đủ 5 task hoặc chưa hoàn thành hết
+        }
+
+        UserStreakEntity streak = streakRepository.findByUserId(userId)
+                .orElseGet(() -> UserStreakEntity.builder()
+                        .userId(userId)
+                        .currentStreak(0)
+                        .longestStreak(0)
+                        .build());
+
+        // Tránh cộng streak nhiều lần trong cùng 1 ngày (vd complete task cuối rồi gọi lại API do lỗi mạng)
+        if (today.equals(streak.getLastCompletedDate())) {
+            return;
+        }
+
+        LocalDate yesterday = today.minusDays(1);
+        if (yesterday.equals(streak.getLastCompletedDate())) {
+            streak.setCurrentStreak(streak.getCurrentStreak() + 1); // nối tiếp chuỗi
+        } else {
+            streak.setCurrentStreak(1); // đứt chuỗi hoặc lần đầu -> reset về 1
+        }
+
+        if (streak.getCurrentStreak() > streak.getLongestStreak()) {
+            streak.setLongestStreak(streak.getCurrentStreak());
+        }
+
+        streak.setLastCompletedDate(today);
+        streakRepository.save(streak);
+
+        logger.info("User {} đạt streak {} ngày (kỷ lục: {})", userId, streak.getCurrentStreak(), streak.getLongestStreak());
     }
 
     @Override
@@ -726,6 +769,41 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .tasks(updatedTasks) // Hoặc đưa vào moodTaskResponse tùy theo DTO contract của bạn
                 .build());
     }
+
+    @Override
+    @Transactional
+    public void getCurrentStreak() {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        UserStreakEntity streak = streakRepository.findByUserId(userId)
+                .orElseGet(() -> UserStreakEntity.builder()
+                        .userId(userId)
+                        .currentStreak(0)
+                        .longestStreak(0)
+                        .build());
+
+        // ➕ Nếu ngày hoàn thành gần nhất không phải hôm nay và cũng không phải hôm qua -> chuỗi đã đứt, hiển thị 0
+        LocalDate today = today();
+        LocalDate yesterday = today.minusDays(1);
+        int displayStreak = streak.getCurrentStreak();
+        if (streak.getLastCompletedDate() != null
+                && !streak.getLastCompletedDate().equals(today)
+                && !streak.getLastCompletedDate().equals(yesterday)) {
+            displayStreak = 0;
+        }
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy thông tin chuỗi thành công")
+                .streak(StreakResponseDTO.builder()
+                        .currentStreak(displayStreak)
+                        .longestStreak(streak.getLongestStreak())
+                        .lastCompletedDate(streak.getLastCompletedDate())
+                        .build())
+                .build());
+    }
+
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private LocalDate today() {

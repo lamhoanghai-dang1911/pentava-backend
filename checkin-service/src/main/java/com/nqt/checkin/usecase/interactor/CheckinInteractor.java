@@ -22,43 +22,41 @@ public class CheckinInteractor implements CheckinInputPort {
     private final CheckinOutputPort outputPort;
 
     @Override
-    public void saveCheckinImageUrl(Long taskId, CheckinRequestDTO requestDTO) {
-        Long userId = 1L; // Hoặc lấy từ token JWT / Security Context hiện tại
+    public void saveCheckinImageUrl(Long taskProgressId, CheckinRequestDTO requestDTO) {
+        Long userId = resolveCurrentUserId();
         LocalDate today = LocalDate.now();
 
-        // Tìm hoặc tạo mới bản ghi check-in trong ngày của task này
-        CheckinEntity entity = checkinRepositoryGateway.findByUserTaskAndDate(userId, taskId, today)
+        CheckinEntity entity = checkinRepositoryGateway.findByUserTaskProgressAndDate(userId, taskProgressId, today)
                 .orElseGet(() -> CheckinEntity.builder()
                         .userId(userId)
-                        .taskId(taskId)
+                        .taskProgressId(taskProgressId)
                         .checkinDate(today)
                         .createdAt(LocalDateTime.now())
                         .build());
 
-        // Cập nhật URL ảnh từ Supabase do Frontend gửi lên
         entity.setImageUrl(requestDTO.getImageUrl());
         checkinRepositoryGateway.save(entity);
 
         outputPort.present(CheckinResponseDTO.builder()
                 .message("Lưu đường dẫn ảnh check-in thành công")
-                .taskId(taskId)
+                .taskProgressId(taskProgressId)
                 .imageUrl(requestDTO.getImageUrl())
                 .checkinDate(today)
                 .build());
     }
 
     @Override
-    public void getCheckinByTask(Long taskId) {
-        Long userId = 1L;
+    public void getCheckinByTask(Long taskProgressId) {
+        Long userId = resolveCurrentUserId();
         LocalDate today = LocalDate.now();
 
-        CheckinEntity entity = checkinRepositoryGateway.findByUserTaskAndDate(userId, taskId, today)
+        CheckinEntity entity = checkinRepositoryGateway.findByUserTaskProgressAndDate(userId, taskProgressId, today)
                 .orElse(null);
 
         if (entity == null) {
             outputPort.present(CheckinResponseDTO.builder()
                     .message("Chưa có thông tin check-in trong ngày")
-                    .taskId(taskId)
+                    .taskProgressId(taskProgressId)
                     .imageUrl(null)
                     .checkinDate(today)
                     .build());
@@ -67,9 +65,15 @@ public class CheckinInteractor implements CheckinInputPort {
 
         outputPort.present(CheckinResponseDTO.builder()
                 .message("Lấy thông tin check-in thành công")
-                .taskId(taskId)
+                .taskProgressId(taskProgressId)
                 .imageUrl(entity.getImageUrl())
                 .checkinDate(entity.getCheckinDate())
                 .build());
+    }
+
+    private Long resolveCurrentUserId() {
+        // TODO: hardcode tạm 1L — cần inject CurrentUserProvider + UserServiceGateway
+        // giống bên onboarding-service để lấy đúng userId theo JWT của từng user.
+        return 1L;
     }
 }

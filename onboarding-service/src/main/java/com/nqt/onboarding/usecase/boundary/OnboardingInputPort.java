@@ -19,4 +19,5 @@ public interface OnboardingInputPort {
     void getDailyTaskStatus(Long goalId);
     void getCurrentGoal();
     void swapDailyTask(SwapTaskRequestDTO requestDTO);
+    void getCurrentStreak();
 }

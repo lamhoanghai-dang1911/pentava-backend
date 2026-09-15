@@ -8,7 +8,7 @@ import java.time.LocalDate;
 @Builder
 public class CheckinResponseDTO {
     private String message;
-    private Long taskId;
+    private Long taskProgressId;
     private String imageUrl;
     private LocalDate checkinDate;
 }

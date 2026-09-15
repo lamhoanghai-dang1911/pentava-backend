@@ -14,8 +14,8 @@ public class CheckinRepositoryGatewayImpl implements CheckinRepositoryGateway {
     private final CheckinJpaRepository jpaRepository;
 
     @Override
-    public Optional<CheckinEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date) {
-        return jpaRepository.findByUserIdAndTaskIdAndCheckinDate(userId, taskId, date);
+    public Optional<CheckinEntity> findByUserTaskProgressAndDate(Long userId, Long taskProgressId, LocalDate date) {
+        return jpaRepository.findByUserIdAndTaskProgressIdAndCheckinDate(userId, taskProgressId, date);
     }
 
     @Override

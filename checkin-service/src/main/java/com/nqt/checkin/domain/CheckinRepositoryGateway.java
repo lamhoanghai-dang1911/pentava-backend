@@ -5,6 +5,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 public interface CheckinRepositoryGateway {
-    Optional<CheckinEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date);
+    Optional<CheckinEntity> findByUserTaskProgressAndDate(Long userId, Long taskProgressId, LocalDate date);
     CheckinEntity save(CheckinEntity entity);
 }
