@@ -1,0 +1,101 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # DB mặc định khi container khởi tạo lần đầu — 3 DB còn lại (auth/checkin/onboarding)
+      # được tạo tự động bởi init-db.sql bên dưới
+      POSTGRES_DB: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"   # bỏ dòng này khi lên production nếu không cần truy cập DB từ ngoài
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: .
+      target: auth-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+      - "9090:9090"   # gRPC server — cần expose để service khác (và host, lúc debug) gọi vào
+
+  checkin-service:
+    build:
+      context: .
+      target: checkin-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/checkin
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      GRPC_CLIENT_AUTH_SERVICE_ADDRESS: static://auth-service:9090
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    ports:
+      - "8084:8084"
+
+  onboarding-service:
+    build:
+      context: .
+      target: onboarding-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/onboarding
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      GRPC_CLIENT_AUTH_SERVICE_ADDRESS: static://auth-service:9090
+      JWT_SECRET: ${JWT_SECRET}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    ports:
+      - "8083:8083"
+
+  api-gateway:
+    build:
+      context: .
+      target: api-gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      AUTH_SERVICE_URI: http://auth-service:8082
+      ONBOARDING_SERVICE_URI: http://onboarding-service:8083
+      CHECKIN_SERVICE_URI: http://checkin-service:8084
+    depends_on:
+      - auth-service
+      - checkin-service
+      - onboarding-service
+    ports:
+      - "8080:8080"   # cổng duy nhất cần public ra ngoài qua Nginx sau này
+
+volumes:
+  pg_data:

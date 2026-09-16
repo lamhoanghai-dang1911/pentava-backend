@@ -1,16 +1,15 @@
 server:
   port: 8082
   address: 0.0.0.0
-  # Thêm dòng này để service biết nhận diện header chuyển tiếp từ API Gateway (8080)
   forward-headers-strategy: framework
 
 spring:
   application:
     name: auth-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/auth
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -23,8 +22,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: justinbiahoi123@gmail.com
-    password: vhag hbzx icts grtb
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -33,16 +32,18 @@ spring:
             enable: true
 
 jwt:
-  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-  expiration: 86400000
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
 
-#springdoc:
-#  api-docs:
-#    path: /v3/api-docs
 springdoc:
   api-docs:
     enabled: true
 
 grpc:
   server:
-    port: 9090
+    port: ${GRPC_SERVER_PORT:9090}
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}

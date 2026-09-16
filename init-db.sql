@@ -1,0 +1,3 @@
+CREATE DATABASE auth;
+CREATE DATABASE checkin;
+CREATE DATABASE onboarding;

@@ -6,9 +6,9 @@ spring:
   application:
     name: checkin-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/checkin
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/checkin}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -30,5 +30,10 @@ springdoc:
 grpc:
   client:
     auth-service:
-      address: 'static://localhost:9090'
+      address: ${GRPC_AUTH_SERVICE_ADDRESS:static://localhost:9090}
       negotiation-type: plaintext
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}

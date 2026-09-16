@@ -1,7 +1,6 @@
 server:
-#  port: 8080 # Cổng chính duy nhất mà Client truy cập
-  address: 0.0.0.0 # for mobile test
-  port: 8080 # Cổng chính duy nhất mà Client truy cập
+  address: 0.0.0.0
+  port: 8080
 
 spring:
   application:
@@ -27,13 +26,13 @@ spring:
       routes:
         # 1. Định tuyến API của auth-service
         - id: auth-service-route
-          uri: http://localhost:8082
+          uri: ${AUTH_SERVICE_URI:http://localhost:8082}
           predicates:
             - Path=/api/auth/**
 
         # 2. Định tuyến file JSON tài liệu docs của auth-service
         - id: auth-service-docs
-          uri: http://localhost:8082
+          uri: ${AUTH_SERVICE_URI:http://localhost:8082}
           predicates:
             - Path=/v3/api-docs/auth-service
           filters:
@@ -41,13 +40,13 @@ spring:
 
         # 3. Định tuyến API của onboarding-service
         - id: onboarding-service-route
-          uri: http://localhost:8083
+          uri: ${ONBOARDING_SERVICE_URI:http://localhost:8083}
           predicates:
             - Path=/api/onboarding/**
 
         # 4. Định tuyến file JSON tài liệu docs của onboarding-service
         - id: onboarding-service-docs
-          uri: http://localhost:8083
+          uri: ${ONBOARDING_SERVICE_URI:http://localhost:8083}
           predicates:
             - Path=/v3/api-docs/onboarding-service
           filters:
@@ -55,13 +54,13 @@ spring:
 
         # 5. Định tuyến API của checkin-service
         - id: checkin-service-route
-          uri: http://localhost:8084
+          uri: ${CHECKIN_SERVICE_URI:http://localhost:8084}
           predicates:
             - Path=/api/checkin/**
 
         # 6. Định tuyến file JSON tài liệu docs của checkin-service
         - id: checkin-service-docs
-          uri: http://localhost:8084
+          uri: ${CHECKIN_SERVICE_URI:http://localhost:8084}
           predicates:
             - Path=/v3/api-docs/checkin-service
           filters:
@@ -78,9 +77,10 @@ springdoc:
       - name: Checkin Service (Chụp ảnh check-in)
         url: /v3/api-docs/checkin-service
 
-# Cấu hình log chi tiết để theo dõi luồng request và CORS qua Gateway
 logging:
   level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}
     org.springframework.cloud.gateway: DEBUG
     org.springframework.web.cors: DEBUG
     reactor.netty.http.server: DEBUG
