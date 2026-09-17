@@ -7,46 +7,63 @@ import com.nqt.auth.usecase.boundary.*;
 import com.nqt.auth.usecase.dto.*;
 import com.nqt.auth.usecase.exception.BusinessException;
 import jakarta.transaction.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Random;
+import java.util.UUID;
 
+@Service
 @Transactional
-public class AuthInteractor implements RegisterInputPort, LoginInputPort, GoogleLoginInputPort, VerifyOtpInputPort, ResendOtpInputPort {
+public class AuthInteractor implements RegisterInputPort, LoginInputPort, GoogleLoginInputPort,
+        VerifyOtpInputPort, ResendOtpInputPort, ForgotPasswordInputPort, VerifyResetOtpInputPort, ResetPasswordInputPort {
+
+    private static final int MAX_RESET_OTP_ATTEMPTS = 5;
+    private static final int RESET_OTP_LOCK_MINUTES = 15;
+    private static final int RESET_OTP_EXPIRY_MINUTES = 5;
+    private static final int RESET_TOKEN_EXPIRY_MINUTES = 10;
 
     private final UserRepositoryGateway userRepository;
     private final LoginOutputPort outputPort;
     private final EmailService emailService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordEncoder passwordEncoder;
+    private final GoogleTokenGateway googleTokenGateway; // ➕
 
     public AuthInteractor(UserRepositoryGateway userRepository,
                           LoginOutputPort outputPort,
                           EmailService emailService,
-                          JwtTokenProvider jwtTokenProvider) {
+                          JwtTokenProvider jwtTokenProvider,
+                          PasswordEncoder passwordEncoder,
+                          GoogleTokenGateway googleTokenGateway) {
         this.userRepository = userRepository;
         this.outputPort = outputPort;
         this.emailService = emailService;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.passwordEncoder = passwordEncoder;
+        this.googleTokenGateway = googleTokenGateway;
     }
 
     @Override
     public void register(RegisterRequestDTO requestDTO) {
+        if (!requestDTO.getPassword().equals(requestDTO.getConfirmPassword())) {
+            throw new BusinessException("Mật khẩu nhập lại không khớp");
+        }
+
         Optional<User> existingUser = userRepository.findByEmail(requestDTO.getEmail());
 
         if (existingUser.isPresent()) {
-            // Thay vì presentError, ta throw BusinessException để GlobalExceptionHandler bắt trọn
             throw new BusinessException("Email này đã được sử dụng. Vui lòng chọn email khác.");
         }
 
-        // Sinh mã OTP ngẫu nhiên 6 chữ số
         String otpCode = String.format("%06d", new Random().nextInt(999999));
-        LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(5); // Hết hạn sau 5 phút
+        LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(5);
 
         User newUser = User.builder()
                 .email(requestDTO.getEmail())
-                .password(requestDTO.getPassword()) // Lưu ý thực tế nên mã hóa BCrypt
-                .name(requestDTO.getName())
+                .password(passwordEncoder.encode(requestDTO.getPassword()))
                 .authProvider("LOCAL")
                 .otpCode(otpCode)
                 .otpExpiryTime(expiryTime)
@@ -55,8 +72,6 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
                 .build();
 
         userRepository.save(newUser);
-
-        // Gửi email OTP
         emailService.sendOtpEmail(newUser.getEmail(), otpCode);
 
         LoginResponseDTO responseDTO = LoginResponseDTO.builder()
@@ -93,7 +108,6 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
             return;
         }
 
-        // Xác thực thành công -> Kích hoạt tài khoản
         user.setVerified(true);
         user.setOtpCode(null);
         user.setOtpExpiryTime(null);
@@ -115,7 +129,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
     public void login(LoginRequestDTO requestDTO) {
         Optional<User> userOpt = userRepository.findByEmail(requestDTO.getEmail());
 
-        if (userOpt.isEmpty() || !userOpt.get().getPassword().equals(requestDTO.getPassword())) {
+        if (userOpt.isEmpty() || !passwordEncoder.matches(requestDTO.getPassword(), userOpt.get().getPassword())) {
             outputPort.presentError("Email hoặc mật khẩu không chính xác");
             return;
         }
@@ -132,7 +146,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
                 .accessToken(token)
                 .email(user.getEmail())
                 .message("Đăng nhập thành công")
-                .hasCompletedOnboarding(user.isHasCompletedOnboarding()) // ➕ Truyền trạng thái vào đây
+                .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .build();
 
         outputPort.present(responseDTO);
@@ -140,24 +154,36 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
 
     @Override
     public void googleLogin(GoogleLoginRequestDTO requestDTO) {
-        String googleEmail = "google.user@gmail.com";
-        String googleName = "Google User";
+        // ➕ Verify idToken thật với Google, lấy email/name/sub đã xác thực
+        GoogleUserInfo googleUserInfo = googleTokenGateway.verify(requestDTO.getIdToken());
 
-        Optional<User> userOpt = userRepository.findByEmail(googleEmail);
+        Optional<User> userOpt = userRepository.findByEmail(googleUserInfo.email());
         User user;
 
-        if (userOpt.isEmpty()) {
+        if (userOpt.isPresent()) {
+            user = userOpt.get();
+
+            if (!"GOOGLE".equals(user.getAuthProvider())) {
+                outputPort.presentError("Email này đã được đăng ký bằng phương thức khác. Vui lòng đăng nhập bằng email và mật khẩu.");
+                return;
+            }
+
+            // Backfill googleId cho account Google cũ (nếu tạo trước khi có field này)
+            if (user.getGoogleId() == null) {
+                user.setGoogleId(googleUserInfo.googleId());
+                userRepository.save(user);
+            }
+        } else {
             User newUser = User.builder()
-                    .email(googleEmail)
+                    .email(googleUserInfo.email())
                     .password("")
-                    .name(googleName)
+                    .name(googleUserInfo.name())
                     .authProvider("GOOGLE")
-                    .isVerified(true) // Google login tự động active luôn
+                    .googleId(googleUserInfo.googleId())
+                    .isVerified(true)
                     .createdAt(LocalDateTime.now())
                     .build();
             user = userRepository.save(newUser);
-        } else {
-            user = userOpt.get();
         }
 
         String token = jwtTokenProvider.generateToken(user.getEmail());
@@ -188,21 +214,144 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
             return;
         }
 
-        // Sinh mã OTP mới hoàn toàn
         String newOtpCode = String.format("%06d", new Random().nextInt(999999));
-        LocalDateTime newExpiryTime = LocalDateTime.now().plusMinutes(5); // Gia hạn thêm 5 phút
+        LocalDateTime newExpiryTime = LocalDateTime.now().plusMinutes(5);
 
-        // Cập nhật thông tin OTP vào database
         user.setOtpCode(newOtpCode);
         user.setOtpExpiryTime(newExpiryTime);
         userRepository.save(user);
 
-        // Gửi lại email OTP mới
         emailService.sendOtpEmail(user.getEmail(), newOtpCode);
 
         LoginResponseDTO responseDTO = LoginResponseDTO.builder()
                 .email(user.getEmail())
                 .message("Mã OTP mới đã được gửi thành công đến email của bạn.")
+                .build();
+
+        outputPort.present(responseDTO);
+    }
+
+    // ==========================================
+    // ➕ QUÊN MẬT KHẨU
+    // ==========================================
+
+    @Override
+    public void forgotPassword(ForgotPasswordRequestDTO requestDTO) {
+        Optional<User> userOpt = userRepository.findByEmail(requestDTO.getEmail());
+
+        if (userOpt.isEmpty()) {
+            outputPort.presentError("Không tìm thấy tài khoản tương ứng với email");
+            return;
+        }
+
+        User user = userOpt.get();
+
+        String otpCode = String.format("%06d", new Random().nextInt(999999));
+        LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(RESET_OTP_EXPIRY_MINUTES);
+
+        user.setResetOtpCode(otpCode);
+        user.setResetOtpExpiryTime(expiryTime);
+        user.setResetOtpAttempts(0);
+        user.setResetOtpLockedUntil(null);
+        user.setResetToken(null);
+        user.setResetTokenExpiryTime(null);
+        userRepository.save(user);
+
+        emailService.sendResetPasswordOtpEmail(user.getEmail(), otpCode);
+
+        LoginResponseDTO responseDTO = LoginResponseDTO.builder()
+                .email(user.getEmail())
+                .message("Mã OTP đặt lại mật khẩu đã được gửi đến email của bạn.")
+                .build();
+
+        outputPort.present(responseDTO);
+    }
+
+    @Override
+    public void verifyResetOtp(VerifyResetOtpRequestDTO requestDTO) {
+        Optional<User> userOpt = userRepository.findByEmail(requestDTO.getEmail());
+
+        if (userOpt.isEmpty()) {
+            outputPort.presentError("Không tìm thấy tài khoản tương ứng với email");
+            return;
+        }
+
+        User user = userOpt.get();
+
+        if (user.getResetOtpLockedUntil() != null && LocalDateTime.now().isBefore(user.getResetOtpLockedUntil())) {
+            outputPort.presentError("Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau ít phút.");
+            return;
+        }
+
+        if (user.getResetOtpCode() == null || user.getResetOtpExpiryTime() == null) {
+            outputPort.presentError("Bạn chưa yêu cầu mã OTP đặt lại mật khẩu");
+            return;
+        }
+
+        if (LocalDateTime.now().isAfter(user.getResetOtpExpiryTime())) {
+            outputPort.presentError("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
+            return;
+        }
+
+        if (!user.getResetOtpCode().equals(requestDTO.getOtpCode())) {
+            int attempts = user.getResetOtpAttempts() + 1;
+            user.setResetOtpAttempts(attempts);
+
+            if (attempts >= MAX_RESET_OTP_ATTEMPTS) {
+                user.setResetOtpLockedUntil(LocalDateTime.now().plusMinutes(RESET_OTP_LOCK_MINUTES));
+                user.setResetOtpCode(null);
+                userRepository.save(user);
+                outputPort.presentError("Bạn đã nhập sai quá 5 lần. Tài khoản bị khoá xác thực trong 15 phút.");
+                return;
+            }
+
+            userRepository.save(user);
+            outputPort.presentError("Mã OTP không chính xác. Còn lại " + (MAX_RESET_OTP_ATTEMPTS - attempts) + " lần thử.");
+            return;
+        }
+
+        String resetToken = UUID.randomUUID().toString();
+        user.setResetToken(resetToken);
+        user.setResetTokenExpiryTime(LocalDateTime.now().plusMinutes(RESET_TOKEN_EXPIRY_MINUTES));
+        user.setResetOtpCode(null);
+        user.setResetOtpExpiryTime(null);
+        user.setResetOtpAttempts(0);
+        user.setResetOtpLockedUntil(null);
+        userRepository.save(user);
+
+        LoginResponseDTO responseDTO = LoginResponseDTO.builder()
+                .email(user.getEmail())
+                .resetToken(resetToken)
+                .message("Xác thực OTP thành công. Vui lòng đặt mật khẩu mới.")
+                .build();
+
+        outputPort.present(responseDTO);
+    }
+
+    @Override
+    public void resetPassword(ResetPasswordRequestDTO requestDTO) {
+        Optional<User> userOpt = userRepository.findByResetToken(requestDTO.getResetToken());
+
+        if (userOpt.isEmpty()) {
+            outputPort.presentError("Token đặt lại mật khẩu không hợp lệ");
+            return;
+        }
+
+        User user = userOpt.get();
+
+        if (user.getResetTokenExpiryTime() == null || LocalDateTime.now().isAfter(user.getResetTokenExpiryTime())) {
+            outputPort.presentError("Token đặt lại mật khẩu đã hết hạn. Vui lòng thực hiện lại từ đầu.");
+            return;
+        }
+
+        user.setPassword(passwordEncoder.encode(requestDTO.getNewPassword()));
+        user.setResetToken(null);
+        user.setResetTokenExpiryTime(null);
+        userRepository.save(user);
+
+        LoginResponseDTO responseDTO = LoginResponseDTO.builder()
+                .email(user.getEmail())
+                .message("Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.")
                 .build();
 
         outputPort.present(responseDTO);

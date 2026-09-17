@@ -26,6 +26,11 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
     }
 
     @Override
+    public Optional<User> findByResetToken(String resetToken) {
+        return jpaRepository.findByResetToken(resetToken).map(this::toDomain);
+    }
+
+    @Override
     public User save(User user) {
         UserEntity entity = UserEntity.builder()
                 .id(user.getId())
@@ -36,8 +41,14 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
                 .otpCode(user.getOtpCode())
                 .otpExpiryTime(user.getOtpExpiryTime())
                 .isVerified(user.isVerified())
-                .hasCompletedOnboarding(user.isHasCompletedOnboarding()) // 🚀 BỔ SUNG TRƯỜNG NÀY KHI SAVE
+                .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .createdAt(user.getCreatedAt())
+                .resetOtpCode(user.getResetOtpCode())
+                .resetOtpExpiryTime(user.getResetOtpExpiryTime())
+                .resetOtpAttempts(user.getResetOtpAttempts())
+                .resetOtpLockedUntil(user.getResetOtpLockedUntil())
+                .resetToken(user.getResetToken())
+                .resetTokenExpiryTime(user.getResetTokenExpiryTime())
                 .build();
 
         UserEntity savedEntity = jpaRepository.save(entity);
@@ -54,8 +65,14 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
                 .otpCode(entity.getOtpCode())
                 .otpExpiryTime(entity.getOtpExpiryTime())
                 .isVerified(entity.isVerified())
-                .hasCompletedOnboarding(entity.isHasCompletedOnboarding()) // 🚀 BỔ SUNG TRƯỜNG NÀY KHI MAP LÊN DOMAIN
+                .hasCompletedOnboarding(entity.isHasCompletedOnboarding())
                 .createdAt(entity.getCreatedAt())
+                .resetOtpCode(entity.getResetOtpCode())
+                .resetOtpExpiryTime(entity.getResetOtpExpiryTime())
+                .resetOtpAttempts(entity.getResetOtpAttempts())
+                .resetOtpLockedUntil(entity.getResetOtpLockedUntil())
+                .resetToken(entity.getResetToken())
+                .resetTokenExpiryTime(entity.getResetTokenExpiryTime())
                 .build();
     }
 }

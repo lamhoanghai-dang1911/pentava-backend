@@ -17,18 +17,27 @@ public class AuthController {
     private final VerifyOtpInputPort verifyOtpInputPort;
     private final AuthPresenter authPresenter;
     private final ResendOtpInputPort resendOtpInputPort;
+    private final ForgotPasswordInputPort forgotPasswordInputPort;
+    private final VerifyResetOtpInputPort verifyResetOtpInputPort;
+    private final ResetPasswordInputPort resetPasswordInputPort;
 
     public AuthController(RegisterInputPort registerInputPort,
                           LoginInputPort loginInputPort,
                           GoogleLoginInputPort googleLoginInputPort,
                           VerifyOtpInputPort verifyOtpInputPort,
                           ResendOtpInputPort resendOtpInputPort,
+                          ForgotPasswordInputPort forgotPasswordInputPort,
+                          VerifyResetOtpInputPort verifyResetOtpInputPort,
+                          ResetPasswordInputPort resetPasswordInputPort,
                           AuthPresenter authPresenter) {
         this.registerInputPort = registerInputPort;
         this.loginInputPort = loginInputPort;
         this.googleLoginInputPort = googleLoginInputPort;
         this.verifyOtpInputPort = verifyOtpInputPort;
         this.resendOtpInputPort = resendOtpInputPort;
+        this.forgotPasswordInputPort = forgotPasswordInputPort;
+        this.verifyResetOtpInputPort = verifyResetOtpInputPort;
+        this.resetPasswordInputPort = resetPasswordInputPort;
         this.authPresenter = authPresenter;
     }
 
@@ -59,6 +68,25 @@ public class AuthController {
     @PostMapping("/resend-otp")
     public ResponseEntity<?> resendOtp(@Valid @RequestBody ResendOtpRequestDTO requestDTO) {
         resendOtpInputPort.resendOtp(requestDTO);
+        return authPresenter.getResponseEntity();
+    }
+
+    // ➕ Quên mật khẩu
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO requestDTO) {
+        forgotPasswordInputPort.forgotPassword(requestDTO);
+        return authPresenter.getResponseEntity();
+    }
+
+    @PostMapping("/verify-reset-otp")
+    public ResponseEntity<?> verifyResetOtp(@Valid @RequestBody VerifyResetOtpRequestDTO requestDTO) {
+        verifyResetOtpInputPort.verifyResetOtp(requestDTO);
+        return authPresenter.getResponseEntity();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO requestDTO) {
+        resetPasswordInputPort.resetPassword(requestDTO);
         return authPresenter.getResponseEntity();
     }
 }

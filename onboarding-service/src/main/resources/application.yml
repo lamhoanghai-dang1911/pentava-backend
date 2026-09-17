@@ -33,7 +33,7 @@ grpc:
       negotiationType: PLAINTEXT
 
 groq:
-  api-key: ${GROQ_API_KEY}
+  api-key: ${GROQ_API_KEY:}
   model: ${GROQ_MODEL:openai/gpt-oss-120b}
 
 logging:
