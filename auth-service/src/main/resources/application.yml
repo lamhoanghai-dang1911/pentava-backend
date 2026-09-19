@@ -1,6 +1,8 @@
 server:
   port: 8082
-  address: 0.0.0.0
+#  address: 127.0.0.1 # VPS
+#  address: 0.0.0.0 TEST MOBILE
+  address: ${SERVER_ADDRESS:127.0.0.1}
   forward-headers-strategy: framework
 
 spring:

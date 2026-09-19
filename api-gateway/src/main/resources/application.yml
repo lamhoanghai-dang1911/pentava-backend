@@ -12,6 +12,7 @@ spring:
           '[/**]':
             allowedOriginPatterns:
               - "http://localhost:3000"
+              - "https://pentava.online"
             allowedMethods:
               - GET
               - POST
