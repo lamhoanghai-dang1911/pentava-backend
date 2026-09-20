@@ -1,18 +1,18 @@
 package com.nqt.onboarding.usecase.boundary;
-//package com.nqt.onboarding.usecase.boundary;
 
 import com.nqt.onboarding.usecase.dto.*;
 
 import java.time.LocalDate;
-import java.util.List;
 
 public interface OnboardingInputPort {
     void submitOnboarding(OnboardingRequestDTO requestDTO);
     void progressToNextGoal(GoalProgressionRequestDTO requestDTO);
     void getTasksByWeek(Integer weekNumber);
-    void saveTaskProgressItems(Long taskId, TaskProgressRequestDTO requestDTO);
-    void getTaskProgress(Long taskId);
-    void completeTaskProgress(Long taskId);
+
+    // ➕ 3 method dưới đây thao tác theo id của bảng user_task_daily (progressId), không còn theo taskId
+    void saveTaskProgressItems(Long progressId, TaskProgressRequestDTO requestDTO);
+    void getTaskProgress(Long progressId);
+    void completeTaskProgress(Long progressId);
 
     void selectMoodAndGetTasks(MoodSelectionRequestDTO requestDTO);
     void confirmDailyTasks(ConfirmDailyTasksRequestDTO requestDTO);

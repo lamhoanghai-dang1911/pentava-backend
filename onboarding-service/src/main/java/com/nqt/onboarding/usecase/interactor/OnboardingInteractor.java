@@ -17,8 +17,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -28,6 +32,13 @@ public class OnboardingInteractor implements OnboardingInputPort {
     private static final int TASKS_PER_MOOD = 20;
     private static final int TASKS_PER_WEEK_PER_MOOD = 5; // 20 / 4 tuần
     private static final int REQUIRED_DAILY_TASKS = 5;
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /** Thứ tự hiển thị trong ngày: theo displayOrder (null xếp sau), sau đó theo id của progress. */
+    private static final Comparator<TaskProgressEntity> DAILY_ORDER = Comparator
+            .comparing(TaskProgressEntity::getDisplayOrder, Comparator.nullsLast(Comparator.<Integer>naturalOrder()))
+            .thenComparing(TaskProgressEntity::getId);
 
     private final UserProfileRepositoryGateway profileRepository;
     private final TaskRepositoryGateway taskRepository;
@@ -220,6 +231,41 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .build());
     }
 
+    @Transactional
+    protected Long persistGoalRenewal(Long userId, String email, GoalRenewalRequestDTO dto, DiagnosticReportDTO diagnostic) {
+        UserGoal newGoal = UserGoal.builder()
+                .userId(userId)
+                .userEmail(email)
+                .goalName(dto.getPrimaryGoal())
+                .status(GoalStatus.IN_PROGRESS)
+                .createdAt(LocalDateTime.now())
+                .build();
+        newGoal = goalRepository.save(newGoal);
+        Long goalId = newGoal.getId();
+
+        List<TaskEntity> tasksToSave = buildMoodTasks(userId, goalId, dto.getPrimaryGoal(), diagnostic);
+        taskRepository.saveAll(tasksToSave);
+        logger.info("Đã lưu {} task cho renewal, user: {}, goalId: {}", tasksToSave.size(), email, goalId);
+
+        // Cập nhật lại các field routine trong profile (giữ name/age/gender cũ)
+        UserProfile profile = profileRepository.findByEmail(email).orElse(null);
+        if (profile != null) {
+            profile.setRoutine(dto.getRoutineType());
+            profile.setSleepHours(dto.getSleepHours());
+            profile.setExerciseFrequency(dto.getExerciseFrequency());
+            profile.setStressFrequency(dto.getStressFrequency());
+            profile.setScreenTime(dto.getScreenTime());
+            profile.setHabitDuration(dto.getHabitDuration());
+            profile.setFreeTimes(dto.getFreeTimes() != null ? String.join(",", dto.getFreeTimes()) : "");
+            profileRepository.save(profile);
+        }
+
+        return goalId;
+    }
+
+    // ==========================================
+    // TRẠNG THÁI HẰNG NGÀY / MỤC TIÊU HIỆN TẠI
+    // ==========================================
     @Override
     @Transactional
     public void getDailyTaskStatus(Long goalId) {
@@ -234,42 +280,11 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
         List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
         boolean hasConfirmedToday = todayProgress.size() == REQUIRED_DAILY_TASKS;
-
-        List<TaskResponseDTO> todayTasks = List.of();
-        if (hasConfirmedToday) {
-            List<Long> ids = todayProgress.stream().map(TaskProgressEntity::getTaskId).toList();
-            List<TaskEntity> entities = taskRepository.findByIds(ids);
-
-            // ➕ lấy trạng thái completed thật từ user_task_daily, không dùng TaskEntity.isCompleted
-            java.util.Map<Long, Boolean> todayCompletedMap = todayProgress.stream()
-                    .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
-
-            todayTasks = entities.stream()
-                    .map(e -> {
-                        TaskResponseDTO dto = toTaskResponseDTO(e);
-                        dto.setIsCompleted(todayCompletedMap.getOrDefault(e.getId(), false));
-                        return dto;
-                    })
-                    .toList();
-        }
+        List<TaskResponseDTO> todayTasks = hasConfirmedToday ? buildOrderedTaskDTOs(todayProgress) : List.of();
 
         List<TaskProgressEntity> yesterdayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, yesterday);
         boolean hasYesterdayTasks = !yesterdayProgress.isEmpty();
-
-        List<TaskResponseDTO> yesterdayTasks = List.of();
-        if (hasYesterdayTasks) {
-            List<Long> ids = yesterdayProgress.stream().map(TaskProgressEntity::getTaskId).toList();
-            List<TaskEntity> entities = taskRepository.findByIds(ids);
-            java.util.Map<Long, Boolean> completedMap = yesterdayProgress.stream()
-                    .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
-            yesterdayTasks = entities.stream()
-                    .map(e -> {
-                        TaskResponseDTO dto = toTaskResponseDTO(e);
-                        dto.setIsCompleted(completedMap.getOrDefault(e.getId(), false));
-                        return dto;
-                    })
-                    .toList();
-        }
+        List<TaskResponseDTO> yesterdayTasks = buildOrderedTaskDTOs(yesterdayProgress);
 
         outputPort.present(OnboardingResponseDTO.builder()
                 .message("Lấy trạng thái nhiệm vụ trong ngày thành công")
@@ -311,38 +326,6 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .build());
     }
 
-    @Transactional
-    protected Long persistGoalRenewal(Long userId, String email, GoalRenewalRequestDTO dto, DiagnosticReportDTO diagnostic) {
-        UserGoal newGoal = UserGoal.builder()
-                .userId(userId)
-                .userEmail(email)
-                .goalName(dto.getPrimaryGoal())
-                .status(GoalStatus.IN_PROGRESS)
-                .createdAt(LocalDateTime.now())
-                .build();
-        newGoal = goalRepository.save(newGoal);
-        Long goalId = newGoal.getId();
-
-        List<TaskEntity> tasksToSave = buildMoodTasks(userId, goalId, dto.getPrimaryGoal(), diagnostic);
-        taskRepository.saveAll(tasksToSave);
-        logger.info("Đã lưu {} task cho renewal, user: {}, goalId: {}", tasksToSave.size(), email, goalId);
-
-        // Cập nhật lại các field routine trong profile (giữ name/age/gender cũ)
-        UserProfile profile = profileRepository.findByEmail(email).orElse(null);
-        if (profile != null) {
-            profile.setRoutine(dto.getRoutineType());
-            profile.setSleepHours(dto.getSleepHours());
-            profile.setExerciseFrequency(dto.getExerciseFrequency());
-            profile.setStressFrequency(dto.getStressFrequency());
-            profile.setScreenTime(dto.getScreenTime());
-            profile.setHabitDuration(dto.getHabitDuration());
-            profile.setFreeTimes(dto.getFreeTimes() != null ? String.join(",", dto.getFreeTimes()) : "");
-            profileRepository.save(profile);
-        }
-
-        return goalId;
-    }
-
     // ==========================================
     // LUỒNG HẰNG NGÀY: chọn mood -> hiện 20 task
     // ==========================================
@@ -379,23 +362,10 @@ public class OnboardingInteractor implements OnboardingInputPort {
         LocalDate yesterday = today.minusDays(1);
         List<Long> yesterdayTaskIds = taskProgressRepository.findCompletedTaskIdsByUserAndDate(userId, yesterday);
 
-        // ➕ Nếu hôm nay đã confirm đủ 5 task rồi -> chỉ trả về đúng 5 task đó (ẩn phần còn lại của pool)
+        // Nếu hôm nay đã confirm đủ 5 task rồi -> chỉ trả về đúng 5 task đó (ẩn phần còn lại của pool)
         List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
         if (todayProgress.size() == REQUIRED_DAILY_TASKS) {
-            List<Long> confirmedIds = todayProgress.stream().map(TaskProgressEntity::getTaskId).toList();
-            List<TaskEntity> confirmedTasks = taskRepository.findByIds(confirmedIds);
-
-            // ➕ thêm map completed thật từ user_task_daily
-            java.util.Map<Long, Boolean> confirmedCompletedMap = todayProgress.stream()
-                    .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
-
-            List<TaskResponseDTO> confirmedDTOs = confirmedTasks.stream()
-                    .map(e -> {
-                        TaskResponseDTO dto = toTaskResponseDTO(e);
-                        dto.setIsCompleted(confirmedCompletedMap.getOrDefault(e.getId(), false));
-                        return dto;
-                    })
-                    .toList();
+            List<TaskResponseDTO> confirmedDTOs = buildOrderedTaskDTOs(todayProgress);
 
             outputPort.present(OnboardingResponseDTO.builder()
                     .message("Bạn đã chọn 5 nhiệm vụ cho hôm nay")
@@ -432,23 +402,27 @@ public class OnboardingInteractor implements OnboardingInputPort {
         requireActiveGoal(userId, requestDTO.getGoalId());
 
         List<Long> selectedTaskIds = requestDTO.getSelectedTaskIds();
-        if (selectedTaskIds == null || selectedTaskIds.size() != REQUIRED_DAILY_TASKS) {
-            throw new BusinessException("Phải chọn đúng " + REQUIRED_DAILY_TASKS + " nhiệm vụ");
+        if (selectedTaskIds == null
+                || selectedTaskIds.size() != REQUIRED_DAILY_TASKS
+                || selectedTaskIds.stream().distinct().count() != REQUIRED_DAILY_TASKS) {
+            throw new BusinessException("Phải chọn đúng " + REQUIRED_DAILY_TASKS + " nhiệm vụ khác nhau");
         }
 
         LocalDate today = today();
 
-        List<TaskProgressEntity> entries = selectedTaskIds.stream()
-                .map(taskId -> taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
-                        .orElseGet(() -> TaskProgressEntity.builder()
-                                .userId(userId)
-                                .taskId(taskId)
-                                .taskDate(today)
-                                .isCompleted(false)
-                                .build()))
-                .toList();
-
-        entries.forEach(taskProgressRepository::save);
+        // Gán displayOrder theo đúng thứ tự client gửi lên
+        for (int i = 0; i < selectedTaskIds.size(); i++) {
+            Long taskId = selectedTaskIds.get(i);
+            TaskProgressEntity entry = taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
+                    .orElseGet(() -> TaskProgressEntity.builder()
+                            .userId(userId)
+                            .taskId(taskId)
+                            .taskDate(today)
+                            .isCompleted(false)
+                            .build());
+            entry.setDisplayOrder(i);
+            taskProgressRepository.save(entry);
+        }
 
         logger.info("User {} đã chọn {} nhiệm vụ cho ngày {}", email, selectedTaskIds.size(), today);
 
@@ -488,6 +462,49 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .isCompleted(entity.getIsCompleted())
                 .moodType(entity.getMoodType() != null ? entity.getMoodType().name() : null)
                 .build();
+    }
+
+    /** Build DTO theo đúng thứ tự hiển thị của progress, completed lấy từ user_task_daily. */
+    private List<TaskResponseDTO> buildOrderedTaskDTOs(List<TaskProgressEntity> progressList) {
+        if (progressList.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = progressList.stream().map(TaskProgressEntity::getTaskId).toList();
+        Map<Long, TaskEntity> taskMap = taskRepository.findByIds(ids).stream()
+                .collect(Collectors.toMap(TaskEntity::getId, Function.identity()));
+        return toOrderedTaskDTOs(progressList, taskMap);
+    }
+
+    private List<TaskResponseDTO> toOrderedTaskDTOs(List<TaskProgressEntity> progressList,
+                                                    Map<Long, TaskEntity> taskMap) {
+        return progressList.stream()
+                .sorted(DAILY_ORDER)
+                .map(p -> {
+                    TaskEntity entity = taskMap.get(p.getTaskId());
+                    if (entity == null) return null;
+                    TaskResponseDTO dto = toTaskResponseDTO(entity);
+                    dto.setIsCompleted(Boolean.TRUE.equals(p.getIsCompleted()));
+                    dto.setProgressId(p.getId());
+                    return dto;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Lấy dòng user_task_daily theo progressId và kiểm tra: thuộc user hiện tại, chưa bị xoá mềm, đúng ngày hôm nay.
+     * Dùng chung một thông báo lỗi cho mọi trường hợp để không lộ việc id đó có tồn tại hay không.
+     */
+    private TaskProgressEntity requireTodayProgress(Long userId, Long progressId, LocalDate today) {
+        TaskProgressEntity progress = taskProgressRepository.findById(progressId)
+                .orElseThrow(() -> new BusinessException("Nhiệm vụ này không thuộc danh sách hôm nay của bạn"));
+
+        if (!userId.equals(progress.getUserId())
+                || Boolean.TRUE.equals(progress.getIsDeleted())
+                || !today.equals(progress.getTaskDate())) {
+            throw new BusinessException("Nhiệm vụ này không thuộc danh sách hôm nay của bạn");
+        }
+        return progress;
     }
 
     // ==========================================
@@ -546,20 +563,12 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
     @Override
     @Transactional
-    public void saveTaskProgressItems(Long taskId, TaskProgressRequestDTO requestDTO) {
+    public void saveTaskProgressItems(Long progressId, TaskProgressRequestDTO requestDTO) {
         String email = currentUserProvider.getCurrentUserEmail();
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
-        LocalDate today = LocalDate.now();
-
-        TaskProgressEntity progress = taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
-                .orElseGet(() -> TaskProgressEntity.builder()
-                        .userId(userId)
-                        .taskId(taskId)
-                        .taskDate(today)
-                        .isCompleted(false)
-                        .build());
+        TaskProgressEntity progress = requireTodayProgress(userId, progressId, today());
 
         String itemsStr = (requestDTO.getSelectedItems() != null && !requestDTO.getSelectedItems().isEmpty())
                 ? String.join(",", requestDTO.getSelectedItems())
@@ -575,32 +584,26 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
     @Override
     @Transactional
-    public void getTaskProgress(Long taskId) {
+    public void getTaskProgress(Long progressId) {
         String email = currentUserProvider.getCurrentUserEmail();
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
-        LocalDate today = LocalDate.now();
-
-        TaskProgressEntity progress = taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
-                .orElse(null);
+        LocalDate today = today();
+        TaskProgressEntity progress = requireTodayProgress(userId, progressId, today);
 
         List<String> items = new ArrayList<>();
-        Boolean isCompleted = false;
-
-        if (progress != null) {
-            isCompleted = progress.getIsCompleted();
-            if (progress.getSelectedItems() != null && !progress.getSelectedItems().isEmpty()) {
-                items = List.of(progress.getSelectedItems().split(","));
-            }
+        if (progress.getSelectedItems() != null && !progress.getSelectedItems().isEmpty()) {
+            items = List.of(progress.getSelectedItems().split(","));
         }
 
         outputPort.present(OnboardingResponseDTO.builder()
                 .message("Lấy thông tin tiến độ task thành công")
                 .taskProgress(TaskProgressResponseDTO.builder()
-                        .taskId(taskId)
+                        .progressId(progress.getId())
+                        .taskId(progress.getTaskId())
                         .taskDate(today)
-                        .isCompleted(isCompleted)
+                        .isCompleted(Boolean.TRUE.equals(progress.getIsCompleted()))
                         .selectedItems(items)
                         .build())
                 .build());
@@ -608,16 +611,14 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
     @Override
     @Transactional
-    public void completeTaskProgress(Long taskId) {
+    public void completeTaskProgress(Long progressId) {
         String email = currentUserProvider.getCurrentUserEmail();
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
         LocalDate today = today();
 
-        TaskProgressEntity progress = taskProgressRepository.findByUserTaskAndDate(userId, taskId, today)
-                .orElseThrow(() -> new BusinessException(
-                        "Nhiệm vụ này không thuộc danh sách 5 nhiệm vụ đã chọn cho hôm nay"));
+        TaskProgressEntity progress = requireTodayProgress(userId, progressId, today);
 
         if (Boolean.TRUE.equals(progress.getIsCompleted())) {
             throw new BusinessException("Nhiệm vụ này đã được hoàn thành trước đó");
@@ -626,13 +627,14 @@ public class OnboardingInteractor implements OnboardingInputPort {
         progress.setIsCompleted(true);
         taskProgressRepository.save(progress);
 
-        // ➕ Kiểm tra nếu đây là task thứ 5/5 hoàn thành trong ngày -> cập nhật streak
+        // Kiểm tra nếu đây là task thứ 5/5 hoàn thành trong ngày -> cập nhật streak
         updateStreakIfAllTasksCompleted(userId, today);
 
         outputPort.present(OnboardingResponseDTO.builder()
                 .message("Chúc mừng! Bạn đã hoàn thành nhiệm vụ")
                 .taskProgress(TaskProgressResponseDTO.builder()
-                        .taskId(taskId)
+                        .progressId(progress.getId())
+                        .taskId(progress.getTaskId())
                         .taskDate(today)
                         .isCompleted(true)
                         .build())
@@ -721,18 +723,32 @@ public class OnboardingInteractor implements OnboardingInputPort {
             throw new BusinessException("Nhiệm vụ mới không thuộc bộ nhiệm vụ theo cảm xúc đã chọn");
         }
 
-        // 5. Task mới không được trùng với 5 task hiện tại đang active của hôm nay
+        // 5. Task mới không được trùng với các task đang active hôm nay
         List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
         boolean alreadySelected = todayProgress.stream().anyMatch(p -> p.getTaskId().equals(newTaskId));
         if (alreadySelected) {
             throw new BusinessException("Nhiệm vụ này đã có trong danh sách hôm nay");
         }
 
+        // 5b. Chuẩn hoá displayOrder (dữ liệu cũ chưa có) và lấy vị trí của task cũ
+        List<TaskProgressEntity> orderedToday = todayProgress.stream().sorted(DAILY_ORDER).toList();
+        Integer slot = null;
+        for (int i = 0; i < orderedToday.size(); i++) {
+            TaskProgressEntity p = orderedToday.get(i);
+            if (!Integer.valueOf(i).equals(p.getDisplayOrder())) {
+                p.setDisplayOrder(i);
+                taskProgressRepository.save(p);
+            }
+            if (p.getTaskId().equals(oldTaskId)) {
+                slot = i;
+            }
+        }
+
         // 6. Xoá mềm task cũ
         oldProgress.setIsDeleted(true);
         taskProgressRepository.save(oldProgress);
 
-        // 7. Task mới: nếu trước đó từng tồn tại (kể cả bị xóa mềm) -> restore & reset, không thì tạo mới
+        // 7. Task mới: restore nếu từng tồn tại (kể cả bị xoá mềm), không thì tạo mới; kế thừa vị trí của task cũ
         TaskProgressEntity newProgress = taskProgressRepository.findByUserTaskAndDateIncludingDeleted(userId, newTaskId, today)
                 .map(existing -> {
                     existing.setIsDeleted(false);
@@ -746,27 +762,15 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .isCompleted(false)
                         .isDeleted(false)
                         .build());
+        newProgress.setDisplayOrder(slot);
         taskProgressRepository.save(newProgress);
 
-        // 8. Lấy danh sách 5 task mới nhất sau khi swap để trả về cho client
+        // 8. Lấy danh sách 5 task mới nhất sau khi swap (đã sắp đúng thứ tự) để trả về cho client
         List<TaskProgressEntity> updatedProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
-        List<Long> updatedIds = updatedProgress.stream().map(TaskProgressEntity::getTaskId).toList();
-        List<TaskEntity> updatedEntities = taskRepository.findByIds(updatedIds);
-
-        java.util.Map<Long, Boolean> completedMap = updatedProgress.stream()
-                .collect(java.util.stream.Collectors.toMap(TaskProgressEntity::getTaskId, TaskProgressEntity::getIsCompleted));
-
-        List<TaskResponseDTO> updatedTasks = updatedEntities.stream()
-                .map(e -> {
-                    TaskResponseDTO dto = toTaskResponseDTO(e);
-                    dto.setIsCompleted(completedMap.getOrDefault(e.getId(), false));
-                    return dto;
-                })
-                .toList();
 
         outputPort.present(OnboardingResponseDTO.builder()
                 .message("Đã thay đổi nhiệm vụ thành công")
-                .tasks(updatedTasks) // Hoặc đưa vào moodTaskResponse tùy theo DTO contract của bạn
+                .tasks(buildOrderedTaskDTOs(updatedProgress)) // Hoặc đưa vào moodTaskResponse tùy theo DTO contract của bạn
                 .build());
     }
 
@@ -784,7 +788,7 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .longestStreak(0)
                         .build());
 
-        // ➕ Nếu ngày hoàn thành gần nhất không phải hôm nay và cũng không phải hôm qua -> chuỗi đã đứt, hiển thị 0
+        // Nếu ngày hoàn thành gần nhất không phải hôm nay và cũng không phải hôm qua -> chuỗi đã đứt, hiển thị 0
         LocalDate today = today();
         LocalDate yesterday = today.minusDays(1);
         int displayStreak = streak.getCurrentStreak();
@@ -827,31 +831,19 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
         List<Long> taskIds = progressList.stream().map(TaskProgressEntity::getTaskId).distinct().toList();
         List<TaskEntity> taskEntities = taskRepository.findByIds(taskIds);
-        java.util.Map<Long, TaskEntity> taskEntityMap = taskEntities.stream()
-                .collect(java.util.stream.Collectors.toMap(TaskEntity::getId, e -> e));
+        Map<Long, TaskEntity> taskEntityMap = taskEntities.stream()
+                .collect(Collectors.toMap(TaskEntity::getId, Function.identity()));
 
         // Gộp theo taskDate
-        java.util.Map<LocalDate, List<TaskProgressEntity>> groupedByDate = progressList.stream()
-                .collect(java.util.stream.Collectors.groupingBy(TaskProgressEntity::getTaskDate));
+        Map<LocalDate, List<TaskProgressEntity>> groupedByDate = progressList.stream()
+                .collect(Collectors.groupingBy(TaskProgressEntity::getTaskDate));
 
         List<DailyTaskHistoryDTO> history = groupedByDate.entrySet().stream()
-                .sorted(java.util.Map.Entry.<LocalDate, List<TaskProgressEntity>>comparingByKey().reversed())
-                .map(entry -> {
-                    List<TaskResponseDTO> tasks = entry.getValue().stream()
-                            .map(p -> {
-                                TaskEntity taskEntity = taskEntityMap.get(p.getTaskId());
-                                if (taskEntity == null) return null;
-                                TaskResponseDTO dto = toTaskResponseDTO(taskEntity);
-                                dto.setIsCompleted(p.getIsCompleted());
-                                return dto;
-                            })
-                            .filter(java.util.Objects::nonNull)
-                            .toList();
-                    return DailyTaskHistoryDTO.builder()
-                            .taskDate(entry.getKey())
-                            .tasks(tasks)
-                            .build();
-                })
+                .sorted(Map.Entry.<LocalDate, List<TaskProgressEntity>>comparingByKey().reversed())
+                .map(entry -> DailyTaskHistoryDTO.builder()
+                        .taskDate(entry.getKey())
+                        .tasks(toOrderedTaskDTOs(entry.getValue(), taskEntityMap))
+                        .build())
                 .toList();
 
         outputPort.present(OnboardingResponseDTO.builder()
@@ -859,8 +851,6 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .taskHistory(history)
                 .build());
     }
-
-    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private LocalDate today() {
         return LocalDate.now(VN_ZONE);

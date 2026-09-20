@@ -47,4 +47,7 @@ public class TaskProgressEntity {
     @Column(name = "is_deleted", nullable = false)
     @Builder.Default
     private Boolean isDeleted = false; // ➕ mới — xoá mềm khi swap task
+
+    @Column(name = "display_order")
+    private Integer displayOrder; // vị trí hiển thị trong ngày (0..4), null = dữ liệu cũ
 }

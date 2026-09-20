@@ -20,6 +20,11 @@ public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepository
     }
 
     @Override
+    public Optional<TaskProgressEntity> findById(Long id) {
+        return jpaRepository.findById(id);
+    }
+
+    @Override
     public Optional<TaskProgressEntity> findByUserTaskAndDate(Long userId, Long taskId, LocalDate date) {
         return jpaRepository.findByUserIdAndTaskIdAndTaskDateAndIsDeletedFalse(userId, taskId, date);
     }

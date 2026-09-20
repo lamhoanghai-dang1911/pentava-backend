@@ -6,7 +6,8 @@ import lombok.Data;
 @Data
 @Builder
 public class TaskResponseDTO {
-    private Long id;
+    private Long id;          // id của task (bảng tasks) - giữ nguyên
+    private Long progressId;  // ➕ id dòng trong user_task_daily, dùng để checkin/lưu nháp. null nếu task chưa được chọn cho hôm nay
     private String title;
     private String content;
     private Integer weekNumber;

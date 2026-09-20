@@ -9,6 +9,7 @@ import java.util.List;
 @Builder
 public class TaskProgressResponseDTO {
     private String message;
+    private Long progressId; // ➕ id dòng trong user_task_daily
     private Long taskId;
     private Integer currentCount;
     private Integer targetCount;

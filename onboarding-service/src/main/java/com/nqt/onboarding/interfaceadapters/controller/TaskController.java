@@ -27,25 +27,26 @@ public class TaskController {
         return presenter.getResponseEntity();
     }
 
-    // ➕ API 1: Auto-save các item user đã tích chọn (Lưu nháp)
-    @PostMapping("/tasks/{taskId}/progress/items")
+    // Auto-save các item user đã tích chọn (Lưu nháp) - theo progressId (user_task_daily.id)
+    @PostMapping("/tasks/daily/{progressId}/progress/items")
     public ResponseEntity<?> saveProgressItems(
-            @PathVariable("taskId") Long taskId,
+            @PathVariable("progressId") Long progressId,
             @RequestBody TaskProgressRequestDTO requestDTO) {
-        inputPort.saveTaskProgressItems(taskId, requestDTO);
+        inputPort.saveTaskProgressItems(progressId, requestDTO);
         return presenter.getResponseEntity();
     }
 
-    // ➕ API 2: Lấy trạng thái tiến độ đã chọn khi mở lại app
-    @GetMapping("/tasks/{taskId}/progress")
-    public ResponseEntity<?> getProgress(@PathVariable("taskId") Long taskId) {
-        inputPort.getTaskProgress(taskId);
+    // Lấy trạng thái tiến độ đã chọn khi mở lại app - theo progressId
+    @GetMapping("/tasks/daily/{progressId}/progress")
+    public ResponseEntity<?> getProgress(@PathVariable("progressId") Long progressId) {
+        inputPort.getTaskProgress(progressId);
         return presenter.getResponseEntity();
     }
 
-    @PostMapping("/tasks/{taskId}/complete")
-    public ResponseEntity<?> completeTask(@PathVariable("taskId") Long taskId) {
-        inputPort.completeTaskProgress(taskId);
+    // Checkin - theo progressId
+    @PostMapping("/tasks/daily/{progressId}/complete")
+    public ResponseEntity<?> completeTask(@PathVariable("progressId") Long progressId) {
+        inputPort.completeTaskProgress(progressId);
         return presenter.getResponseEntity();
     }
 
