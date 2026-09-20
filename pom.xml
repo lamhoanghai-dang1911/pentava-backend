@@ -15,6 +15,7 @@
         <module>api-gateway</module>
         <module>onboarding-service</module>
         <module>checkin-service</module>
+<!--        <module>cinema-service</module>-->
     </modules>
 
     <properties>

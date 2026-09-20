@@ -25,7 +25,7 @@ COPY checkin-service/pom.xml checkin-service/pom.xml
 COPY onboarding-service/pom.xml onboarding-service/pom.xml
 
 # Tải dependency trước (cache riêng bước này, đỡ tải lại khi chỉ đổi code)
-RUN mvn -B -q dependency:go-offline || true
+RUN mvn -B dependency:resolve-plugins dependency:go-offline -DskipTests || true
 
 # Copy toàn bộ source thật
 COPY common-starter ./common-starter

@@ -2,45 +2,59 @@ package com.nqt.checkin.usecase.interactor;
 
 import com.nqt.checkin.domain.CheckinRepositoryGateway;
 import com.nqt.checkin.infrastructure.persistence.CheckinEntity;
+import com.nqt.checkin.infrastructure.security.CurrentUserProvider;
+import com.nqt.checkin.infrastructure.storage.SupabaseImageUrlValidator;
 import com.nqt.checkin.usecase.boundary.CheckinInputPort;
 import com.nqt.checkin.usecase.boundary.CheckinOutputPort;
+import com.nqt.checkin.usecase.boundary.UserServiceGateway;
 import com.nqt.checkin.usecase.dto.CheckinRequestDTO;
 import com.nqt.checkin.usecase.dto.CheckinResponseDTO;
+import com.nqt.checkin.usecase.exception.CheckinBusinessException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Transactional
 @RequiredArgsConstructor
 @Service
 public class CheckinInteractor implements CheckinInputPort {
 
+    // Cùng múi giờ với onboarding-service để ranh giới ngày/tuần khớp nhau
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
     private final CheckinRepositoryGateway checkinRepositoryGateway;
     private final CheckinOutputPort outputPort;
+    private final CurrentUserProvider currentUserProvider;
+    private final UserServiceGateway userServiceGateway;
+    private final SupabaseImageUrlValidator imageUrlValidator;
 
     @Override
     public void saveCheckinImageUrl(Long taskProgressId, CheckinRequestDTO requestDTO) {
+        String imageUrl = requestDTO.getImageUrl() == null ? null : requestDTO.getImageUrl().trim();
+        imageUrlValidator.requireValid(imageUrl);
+
         Long userId = resolveCurrentUserId();
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
 
         CheckinEntity entity = checkinRepositoryGateway.findByUserTaskProgressAndDate(userId, taskProgressId, today)
                 .orElseGet(() -> CheckinEntity.builder()
                         .userId(userId)
                         .taskProgressId(taskProgressId)
                         .checkinDate(today)
-                        .createdAt(LocalDateTime.now())
+                        .createdAt(LocalDateTime.now(VN_ZONE))
                         .build());
 
-        entity.setImageUrl(requestDTO.getImageUrl());
+        entity.setImageUrl(imageUrl);
         checkinRepositoryGateway.save(entity);
 
         outputPort.present(CheckinResponseDTO.builder()
                 .message("Lưu đường dẫn ảnh check-in thành công")
                 .taskProgressId(taskProgressId)
-                .imageUrl(requestDTO.getImageUrl())
+                .imageUrl(imageUrl)
                 .checkinDate(today)
                 .build());
     }
@@ -48,7 +62,7 @@ public class CheckinInteractor implements CheckinInputPort {
     @Override
     public void getCheckinByTask(Long taskProgressId) {
         Long userId = resolveCurrentUserId();
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
 
         CheckinEntity entity = checkinRepositoryGateway.findByUserTaskProgressAndDate(userId, taskProgressId, today)
                 .orElse(null);
@@ -72,8 +86,12 @@ public class CheckinInteractor implements CheckinInputPort {
     }
 
     private Long resolveCurrentUserId() {
-        // TODO: hardcode tạm 1L — cần inject CurrentUserProvider + UserServiceGateway
-        // giống bên onboarding-service để lấy đúng userId theo JWT của từng user.
-        return 1L;
+        String email = currentUserProvider.getCurrentUserEmail();
+        return userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new CheckinBusinessException("User không tồn tại"));
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(VN_ZONE);
     }
 }

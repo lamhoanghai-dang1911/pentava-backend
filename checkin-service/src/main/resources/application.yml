@@ -25,6 +25,16 @@ spring:
       max-file-size: 10MB
       max-request-size: 10MB
 
+# ➕ Không đặt giá trị mặc định cho secret: thiếu JWT_SECRET thì service không khởi động
+jwt:
+  secret: ${JWT_SECRET}
+
+# ➕ Dùng để chỉ chấp nhận ảnh nằm đúng bucket Supabase của dự án
+# SUPABASE_URL dạng: https://<project-ref>.supabase.co
+supabase:
+  url: ${SUPABASE_URL}
+  checkin-bucket: ${SUPABASE_CHECKIN_BUCKET:pentava-checkin-images}
+
 springdoc:
   api-docs:
     group: checkin-service
@@ -34,6 +44,9 @@ grpc:
     auth-service:
       address: ${GRPC_AUTH_SERVICE_ADDRESS:static://localhost:9090}
       negotiation-type: plaintext
+    grpc:
+      server:
+        port: 9091
 
 logging:
   level:

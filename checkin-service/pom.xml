@@ -61,7 +61,7 @@
             <artifactId>common-starter</artifactId>
         </dependency>
 
-        <!-- gRPC Client Starter (để gọi sang auth-service hoặc các service khác nếu cần) -->
+        <!-- gRPC Client Starter (gọi sang auth-service để lấy userId từ email) -->
         <dependency>
             <groupId>net.devh</groupId>
             <artifactId>grpc-client-spring-boot-starter</artifactId>
@@ -73,6 +73,32 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
+
+        <!-- ➕ MỚI: xử lý JWT (giống onboarding-service) -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.5</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.12.5</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ➕ MỚI: đọc file .env khi chạy local (giống onboarding-service) -->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -83,5 +109,20 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- ➕ Ép mọi artifact io.grpc về cùng phiên bản (giống onboarding-service).
+         Thiếu khối này thì grpc-client-spring-boot-starter kéo grpc-core 1.63.0 trong khi
+         common-starter dùng grpc-api 1.65.0 -> NoClassDefFoundError: io/grpc/InternalGlobalInterceptors -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 </project>

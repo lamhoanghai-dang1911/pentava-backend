@@ -1,0 +1,19 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: cinema-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cinema
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+grpc:
+  client:
+    checkin-service:
+      address: 'static://localhost:9091'
+      negotiationType: plaintext
