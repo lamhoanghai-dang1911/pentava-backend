@@ -7,24 +7,24 @@ option java_package = "com.nqt.common.grpc.checkin";
 option java_outer_classname = "CheckinProto";
 
 service CheckinService {
-  // Dùng bởi cinema-service để lấy danh sách ảnh check-in trong khoảng ngày của 1 user
-  rpc GetCheckinsInRange(GetCheckinsInRangeRequest) returns (GetCheckinsInRangeResponse);
+  // Dùng bởi cinema-service: lấy toàn bộ ảnh check-in của 1 user trong khoảng ngày (gồm cả 2 đầu)
+  rpc GetCheckinsByDateRange(GetCheckinsByDateRangeRequest) returns (GetCheckinsByDateRangeResponse);
 }
 
-message GetCheckinsInRangeRequest {
+message GetCheckinsByDateRangeRequest {
   int64 user_id = 1;
-  string start_date = 2; // ISO-8601 yyyy-MM-dd
-  string end_date = 3;   // ISO-8601 yyyy-MM-dd
+  string start_date = 2; // yyyy-MM-dd
+  string end_date = 3;   // yyyy-MM-dd (gồm cả ngày này)
 }
 
 message CheckinItem {
-  int64 checkin_id = 1;
+  int64 id = 1;
   int64 task_progress_id = 2;
-  string checkin_date = 3; // yyyy-MM-dd
-  string image_path = 4;   // path trong Supabase bucket, KHÔNG phải URL đầy đủ
-  string created_at = 5;   // ISO-8601 datetime
+  string checkin_date = 3; // yyyy-MM-dd (giờ VN)
+  string image_url = 4;
+  string created_at = 5;   // ISO-8601 local date-time (giờ VN), có thể rỗng với dữ liệu cũ
 }
 
-message GetCheckinsInRangeResponse {
-  repeated CheckinItem items = 1;
+message GetCheckinsByDateRangeResponse {
+  repeated CheckinItem checkins = 1;
 }

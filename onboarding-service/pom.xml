@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.nqt</groupId>
         <artifactId>PENTAVA</artifactId>
-        <version>1.0-SNAPSHOT</version> <!-- Đồng bộ thành 1.0-SNAPSHOT ở đây -->
+        <version>1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -44,12 +44,20 @@
             <artifactId>common-starter</artifactId>
         </dependency>
 
-        <!-- ➕ MỚI: gRPC client -->
+        <!-- gRPC client (gọi sang auth-service) -->
         <dependency>
             <groupId>net.devh</groupId>
             <artifactId>grpc-client-spring-boot-starter</artifactId>
             <version>${grpc-spring-boot.version}</version>
         </dependency>
+
+        <!-- ➕ MỚI: gRPC server, để cinema-service gọi vào lấy danh sách mục tiêu của user -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-server-spring-boot-starter</artifactId>
+            <version>${grpc-spring-boot.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

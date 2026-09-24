@@ -1,19 +1,54 @@
 server:
   port: 8085
+  address: ${SERVER_ADDRESS:127.0.0.1}
 
 spring:
   application:
     name: cinema-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/cinema
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cinema}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
+    show-sql: false
+
+# Không đặt giá trị mặc định cho secret: thiếu JWT_SECRET thì service không khởi động
+jwt:
+  secret: ${JWT_SECRET}
+
+supabase:
+  url: ${SUPABASE_URL}
+  service-key: ${SUPABASE_SERVICE_KEY}
+  cinema-bucket: ${SUPABASE_CINEMA_BUCKET:cinema-clips}
+
+cinema:
+  min-photos: ${CINEMA_MIN_PHOTOS:3}
+  render:
+    font-file: ${CINEMA_FONT_FILE:/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf}
+    signed-url-expiry-seconds: ${CINEMA_SIGNED_URL_EXPIRY_SECONDS:21600}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
 
 grpc:
+  server:
+    port: ${GRPC_SERVER_PORT:9093}
   client:
+    auth-service:
+      address: ${GRPC_AUTH_SERVICE_ADDRESS:static://localhost:9090}
+      negotiation-type: plaintext
     checkin-service:
-      address: 'static://localhost:9091'
-      negotiationType: plaintext
+      address: ${GRPC_CHECKIN_SERVICE_ADDRESS:static://localhost:9091}
+      negotiation-type: plaintext
+    onboarding-service:
+      address: ${GRPC_ONBOARDING_SERVICE_ADDRESS:static://localhost:9092}
+      negotiation-type: plaintext
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}

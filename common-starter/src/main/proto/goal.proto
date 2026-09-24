@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package goal;
+
+option java_multiple_files = true;
+option java_package = "com.nqt.common.grpc.goal";
+option java_outer_classname = "GoalProto";
+
+service GoalService {
+  // Dùng bởi cinema-service: toàn bộ mục tiêu (mọi trạng thái) của 1 user, mới nhất trước.
+  rpc GetUserGoals(GetUserGoalsRequest) returns (GetUserGoalsResponse);
+}
+
+message GetUserGoalsRequest {
+  int64 user_id = 1;
+}
+
+message UserGoalItem {
+  int64 id = 1;
+  string goal_name = 2;
+  string status = 3;       // PENDING | IN_PROGRESS | COMPLETED
+  string start_date = 4;   // yyyy-MM-dd (giờ VN)
+  string end_date = 5;     // yyyy-MM-dd (giờ VN), tính cả ngày này, = start_date + 27
+  bool expired = 6;        // true nếu đã qua end_date nhưng status vẫn IN_PROGRESS (chưa kịp cập nhật)
+}
+
+message GetUserGoalsResponse {
+  repeated UserGoalItem goals = 1;
+}

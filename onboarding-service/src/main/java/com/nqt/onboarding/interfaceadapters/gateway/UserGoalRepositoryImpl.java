@@ -5,6 +5,8 @@ import com.nqt.onboarding.domain.UserGoal;
 import com.nqt.onboarding.infrastructure.persistence.UserGoalEntity;
 import com.nqt.onboarding.usecase.boundary.UserGoalRepositoryGateway;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -31,6 +33,13 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
     }
 
     @Override
+    public List<UserGoal> findAllByUserId(Long userId) {
+        return jpaRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public UserGoal save(UserGoal goal) {
         UserGoalEntity saved = jpaRepository.save(toEntity(goal));
         return toDomain(saved);
@@ -45,6 +54,8 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
                 .status(entity.getStatus())
                 .createdAt(entity.getCreatedAt())
                 .completedAt(entity.getCompletedAt())
+                .startDate(entity.getStartDate())
+                .endDate(entity.getEndDate())
                 .build();
     }
 
@@ -57,6 +68,8 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
                 .status(domain.getStatus())
                 .createdAt(domain.getCreatedAt())
                 .completedAt(domain.getCompletedAt())
+                .startDate(domain.getStartDate())
+                .endDate(domain.getEndDate())
                 .build();
     }
 }

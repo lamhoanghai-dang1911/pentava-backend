@@ -17,6 +17,8 @@ public class User {
     private LocalDateTime otpExpiryTime;
     private boolean isVerified;
     private boolean hasCompletedOnboarding;
+    private String avatarUrl;
+    private String bio;
     private LocalDateTime createdAt;
 
     // ➕ Quên mật khẩu

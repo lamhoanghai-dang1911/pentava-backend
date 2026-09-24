@@ -21,6 +21,11 @@ public class UserProfileRepositoryImpl implements UserProfileRepositoryGateway {
     }
 
     @Override
+    public Optional<UserProfile> findByUserId(Long userId) {
+        return jpaRepository.findByUserId(userId).map(this::toDomain);
+    }
+
+    @Override
     public UserProfile save(UserProfile profile) {
         UserProfileEntity entity = toEntity(profile);
         UserProfileEntity saved = jpaRepository.save(entity);
@@ -30,7 +35,7 @@ public class UserProfileRepositoryImpl implements UserProfileRepositoryGateway {
     private UserProfile toDomain(UserProfileEntity entity) {
         return UserProfile.builder()
                 .id(entity.getId())
-                .userId(entity.getUserId()) // ➕ BỔ SUNG MAPPING userId
+                .userId(entity.getUserId())
                 .userEmail(entity.getUserEmail())
                 .name(entity.getName())
                 .gender(entity.getGender())
@@ -49,7 +54,7 @@ public class UserProfileRepositoryImpl implements UserProfileRepositoryGateway {
     private UserProfileEntity toEntity(UserProfile domain) {
         return UserProfileEntity.builder()
                 .id(domain.getId())
-                .userId(domain.getUserId()) // ➕ BỔ SUNG MAPPING userId
+                .userId(domain.getUserId())
                 .userEmail(domain.getUserEmail())
                 .name(domain.getName())
                 .gender(domain.getGender())

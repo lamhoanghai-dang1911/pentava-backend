@@ -67,6 +67,34 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/checkin-service, /v3/api-docs
 
+        # 7. Định tuyến API của cinema-service
+        - id: cinema-service-route
+          uri: ${CINEMA_SERVICE_URI:http://localhost:8085}
+          predicates:
+            - Path=/api/cinema/**
+
+        # 8. Định tuyến file JSON tài liệu docs của cinema-service
+        - id: cinema-service-docs
+          uri: ${CINEMA_SERVICE_URI:http://localhost:8085}
+          predicates:
+            - Path=/v3/api-docs/cinema-service
+          filters:
+            - RewritePath=/v3/api-docs/cinema-service, /v3/api-docs
+
+        # 9. Định tuyến API của social-service
+        - id: social-service-route
+          uri: ${SOCIAL_SERVICE_URI:http://localhost:8086}
+          predicates:
+            - Path=/api/social/**
+
+        # 10. Định tuyến file JSON tài liệu docs của social-service
+        - id: social-service-docs
+          uri: ${SOCIAL_SERVICE_URI:http://localhost:8086}
+          predicates:
+            - Path=/v3/api-docs/social-service
+          filters:
+            - RewritePath=/v3/api-docs/social-service, /v3/api-docs
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -77,6 +105,10 @@ springdoc:
         url: /v3/api-docs/onboarding-service
       - name: Checkin Service (Chụp ảnh check-in)
         url: /v3/api-docs/checkin-service
+      - name: Cinema Service (PENTA-CINEMA)
+        url: /v3/api-docs/cinema-service
+      - name: Social Service (Mạng xã hội)
+        url: /v3/api-docs/social-service
 
 logging:
   level:

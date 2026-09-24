@@ -15,6 +15,9 @@ service UserService {
 
   // ➕ Thêm rpc cập nhật trạng thái hoàn thành onboarding
   rpc UpdateOnboardingStatus(UpdateOnboardingStatusRequest) returns (UpdateOnboardingStatusResponse);
+
+  // ➕ Thêm rpc lấy danh sách gợi ý kết bạn
+  rpc GetSuggestedUsers(GetSuggestedUsersRequest) returns (GetSuggestedUsersResponse);
 }
 
 message GetUserByEmailRequest {
@@ -30,6 +33,8 @@ message UserResponse {
   string email = 2;
   string name = 3;
   bool found = 4;
+  string avatar_url = 5;
+  string bio = 6;
 }
 
 // ➕ Các message mới cho việc cập nhật onboarding
@@ -41,4 +46,23 @@ message UpdateOnboardingStatusRequest {
 message UpdateOnboardingStatusResponse {
   bool success = 1;
   string message = 2;
+}
+
+// ➕ Các message cho việc gợi ý kết bạn
+message GetSuggestedUsersRequest {
+  int64 current_user_id = 1;
+  repeated int64 excluded_user_ids = 2;
+  int32 limit = 3;
+}
+
+message UserSocialProfile {
+  int64 id = 1;
+  string email = 2;
+  string name = 3;
+  string avatar_url = 4;
+  string bio = 5;
+}
+
+message GetSuggestedUsersResponse {
+  repeated UserSocialProfile users = 1;
 }

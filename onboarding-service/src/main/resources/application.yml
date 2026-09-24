@@ -29,6 +29,10 @@ springdoc:
     path: /v3/api-docs
 
 grpc:
+  # ➕ MỚI: gRPC server để cinema-service gọi vào lấy danh sách mục tiêu của user.
+  # Chỉ mở trong mạng Docker nội bộ, không publish ra máy chủ (giống checkin-service với 9091).
+  server:
+    port: ${ONBOARDING_GRPC_PORT:9092}
   client:
     auth-service:
       address: ${GRPC_AUTH_SERVICE_ADDRESS:static://localhost:9090}

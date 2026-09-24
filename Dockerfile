@@ -1,6 +1,6 @@
 # ==========================================================
 # PENTAVA — multi-stage Dockerfile cho project multi-module Maven
-# Build 1 lần cho cả reactor (common-starter + 4 service),
+# Build 1 lần cho cả reactor (common-starter + 5 service),
 # sau đó mỗi service có 1 stage final riêng, nhẹ, chỉ chứa JRE + jar.
 #
 # Cách build từng service (chạy từ thư mục gốc PENTAVA, nơi có pom.xml cha):
@@ -8,6 +8,7 @@
 #   docker build --target auth-service      -t pentava/auth-service:latest .
 #   docker build --target checkin-service   -t pentava/checkin-service:latest .
 #   docker build --target onboarding-service -t pentava/onboarding-service:latest .
+#   docker build --target cinema-service    -t pentava/cinema-service:latest .
 #
 # (docker-compose.yml đi kèm sẽ tự làm việc này cho bạn, không cần build tay)
 # ==========================================================
@@ -23,9 +24,11 @@ COPY api-gateway/pom.xml api-gateway/pom.xml
 COPY auth-service/pom.xml auth-service/pom.xml
 COPY checkin-service/pom.xml checkin-service/pom.xml
 COPY onboarding-service/pom.xml onboarding-service/pom.xml
+COPY cinema-service/pom.xml cinema-service/pom.xml
+COPY social-service/pom.xml social-service/pom.xml
 
 # Tải dependency trước (cache riêng bước này, đỡ tải lại khi chỉ đổi code)
-RUN mvn -B dependency:resolve-plugins dependency:go-offline -DskipTests || true
+RUN mvn -B -q dependency:go-offline || true
 
 # Copy toàn bộ source thật
 COPY common-starter ./common-starter
@@ -33,6 +36,8 @@ COPY api-gateway ./api-gateway
 COPY auth-service ./auth-service
 COPY checkin-service ./checkin-service
 COPY onboarding-service ./onboarding-service
+COPY cinema-service ./cinema-service
+COPY social-service ./social-service
 
 # Build toàn bộ reactor (common-starter sẽ được install vào .m2 local
 # trong image build này để các service khác dùng được)
@@ -55,15 +60,36 @@ EXPOSE 9090
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
 # ---------- STAGE 4: checkin-service ----------
+# gRPC server (port 9091) cho cinema-service gọi vào, chỉ dùng trong mạng Docker
 FROM eclipse-temurin:21-jre AS checkin-service
 WORKDIR /app
 COPY --from=build /workspace/checkin-service/target/checkin-service-*.jar app.jar
 EXPOSE 8084
+EXPOSE 9091
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
 # ---------- STAGE 5: onboarding-service ----------
+# gRPC server (port 9092) cho cinema-service gọi vào lấy danh sách mục tiêu, chỉ dùng trong mạng Docker
 FROM eclipse-temurin:21-jre AS onboarding-service
 WORKDIR /app
 COPY --from=build /workspace/onboarding-service/target/onboarding-service-*.jar app.jar
 EXPOSE 8083
+EXPOSE 9092
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# ---------- STAGE 6: cinema-service ----------
+FROM eclipse-temurin:21-jre AS cinema-service
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-noto \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /workspace/cinema-service/target/cinema-service-*.jar app.jar
+EXPOSE 8085
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# ---------- STAGE 7: social-service ----------
+FROM eclipse-temurin:21-jre AS social-service
+WORKDIR /app
+COPY --from=build /workspace/social-service/target/social-service-*.jar app.jar
+EXPOSE 8086
 ENTRYPOINT ["java", "-jar", "app.jar"]

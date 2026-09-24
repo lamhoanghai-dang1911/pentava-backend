@@ -68,6 +68,13 @@
             <version>${grpc-spring-boot.version}</version>
         </dependency>
 
+        <!-- ➕ MỚI: gRPC Server Starter (cho cinema-service gọi vào lấy ảnh check-in) -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-server-spring-boot-starter</artifactId>
+            <version>${grpc-spring-boot.version}</version>
+        </dependency>
+
         <!-- OAuth2 Resource Server -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

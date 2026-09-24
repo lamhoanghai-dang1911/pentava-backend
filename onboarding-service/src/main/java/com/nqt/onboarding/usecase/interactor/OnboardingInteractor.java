@@ -32,6 +32,7 @@ public class OnboardingInteractor implements OnboardingInputPort {
     private static final int TASKS_PER_MOOD = 20;
     private static final int TASKS_PER_WEEK_PER_MOOD = 5; // 20 / 4 tuần
     private static final int REQUIRED_DAILY_TASKS = 5;
+    private static final int GOAL_DURATION_DAYS = 28; // 4 tuần x 7 ngày, endDate = startDate + 27
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
@@ -62,12 +63,9 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
         logger.info("Processing onboarding for user: {}", email);
 
-        // Idempotency: chặn nếu đang có goal IN_PROGRESS
-        goalRepository.findByEmailAndGoalName(email, dto.getPrimaryGoal())
-                .filter(g -> g.getStatus() == GoalStatus.IN_PROGRESS)
-                .ifPresent(g -> {
-                    throw new BusinessException("Bạn đang có mục tiêu đang thực hiện, không thể tạo mới");
-                });
+        // Idempotency + ràng buộc nghiệp vụ: mỗi user chỉ có 1 mục tiêu IN_PROGRESS tại 1 thời điểm,
+        // dù mục tiêu mới có trùng tên với mục tiêu đang chạy hay không.
+        requireNoActiveGoal(userId);
 
         OnboardingAnswerDTO answers = OnboardingAnswerDTO.builder()
                 .userEmail(email)
@@ -107,12 +105,15 @@ public class OnboardingInteractor implements OnboardingInputPort {
         String currentGoalName = dto.getPrimaryGoal();
 
         // Tạo goal mới trước để lấy goalId gắn cho 60 task
+        LocalDate goalStart = today();
         UserGoal primaryGoal = UserGoal.builder()
                 .userId(userId)
                 .userEmail(email)
                 .goalName(currentGoalName)
                 .status(GoalStatus.IN_PROGRESS)
-                .createdAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(VN_ZONE))
+                .startDate(goalStart)
+                .endDate(goalStart.plusDays(GOAL_DURATION_DAYS - 1))
                 .build();
         primaryGoal = goalRepository.save(primaryGoal);
         Long goalId = primaryGoal.getId();
@@ -200,12 +201,8 @@ public class OnboardingInteractor implements OnboardingInputPort {
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
-        // Chặn double-submit: không cho renewal nếu đã có goal IN_PROGRESS
-        goalRepository.findByEmailAndGoalName(email, dto.getPrimaryGoal())
-                .filter(g -> g.getStatus() == GoalStatus.IN_PROGRESS)
-                .ifPresent(g -> {
-                    throw new BusinessException("Bạn đang có mục tiêu đang thực hiện, không thể tạo mới");
-                });
+        // Chặn double-submit + ràng buộc nghiệp vụ: chỉ 1 mục tiêu IN_PROGRESS tại 1 thời điểm
+        requireNoActiveGoal(userId);
 
         OnboardingAnswerDTO answers = OnboardingAnswerDTO.builder()
                 .userEmail(email)
@@ -233,12 +230,15 @@ public class OnboardingInteractor implements OnboardingInputPort {
 
     @Transactional
     protected Long persistGoalRenewal(Long userId, String email, GoalRenewalRequestDTO dto, DiagnosticReportDTO diagnostic) {
+        LocalDate goalStart = today();
         UserGoal newGoal = UserGoal.builder()
                 .userId(userId)
                 .userEmail(email)
                 .goalName(dto.getPrimaryGoal())
                 .status(GoalStatus.IN_PROGRESS)
-                .createdAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(VN_ZONE))
+                .startDate(goalStart)
+                .endDate(goalStart.plusDays(GOAL_DURATION_DAYS - 1))
                 .build();
         newGoal = goalRepository.save(newGoal);
         Long goalId = newGoal.getId();
@@ -431,6 +431,17 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .build());
     }
 
+    /**
+     * Chặn tạo/kích hoạt mục tiêu mới nếu user đang có bất kỳ mục tiêu nào ở trạng thái IN_PROGRESS,
+     * bất kể trùng tên hay không. Áp dụng nghiệp vụ: 1 user chỉ có 1 mục tiêu đang chạy tại 1 thời điểm.
+     */
+    private void requireNoActiveGoal(Long userId) {
+        goalRepository.findByUserIdAndStatus(userId, GoalStatus.IN_PROGRESS)
+                .ifPresent(g -> {
+                    throw new BusinessException("Bạn đang có mục tiêu đang thực hiện, không thể tạo mới");
+                });
+    }
+
     private UserGoal requireActiveGoal(Long userId, Long goalId) {
         // Lưu ý: UserGoalRepositoryGateway hiện chỉ có findByEmailAndGoalName.
         // Cần thêm method findById hoặc findByIdAndUserId để check chuẩn theo goalId + userId.
@@ -536,8 +547,13 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .createdAt(LocalDateTime.now())
                         .build());
 
+        // Kích hoạt lại từ đầu: luôn tính mốc 4 tuần mới kể từ hôm nay, kể cả khi tái sử dụng
+        // 1 UserGoal đã tồn tại trước đó (đã COMPLETED) chứ không phải mới tạo lần đầu.
+        LocalDate goalStart = today();
         nextGoal.setUserId(userId);
         nextGoal.setStatus(GoalStatus.IN_PROGRESS);
+        nextGoal.setStartDate(goalStart);
+        nextGoal.setEndDate(goalStart.plusDays(GOAL_DURATION_DAYS - 1));
         goalRepository.save(nextGoal);
 
         outputPort.present(OnboardingResponseDTO.builder()

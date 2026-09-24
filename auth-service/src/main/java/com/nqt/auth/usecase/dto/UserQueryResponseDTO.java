@@ -9,4 +9,6 @@ public class UserQueryResponseDTO {
     private Long id;
     private String email;
     private String name;
+    private String avatarUrl;
+    private String bio;
 }

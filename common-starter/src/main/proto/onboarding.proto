@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package onboarding;
+
+option java_multiple_files = true;
+option java_package = "com.nqt.common.grpc.onboarding";
+option java_outer_classname = "OnboardingProto";
+
+service OnboardingProfileService {
+  // Lấy thông tin profile người dùng theo email
+  rpc GetProfileByEmail(GetProfileByEmailRequest) returns (OnboardingProfileResponse);
+
+  // Lấy thông tin profile người dùng theo userId
+  rpc GetProfileByUserId(GetProfileByUserIdRequest) returns (OnboardingProfileResponse);
+
+  // Cập nhật tên người dùng ở onboarding-service
+  rpc UpdateProfileName(UpdateProfileNameRequest) returns (UpdateProfileNameResponse);
+}
+
+message GetProfileByEmailRequest {
+  string email = 1;
+}
+
+message GetProfileByUserIdRequest {
+  int64 user_id = 1;
+}
+
+message OnboardingProfileResponse {
+  bool found = 1;
+  int64 user_id = 2;
+  string email = 3;
+  string name = 4;
+}
+
+message UpdateProfileNameRequest {
+  int64 user_id = 1;
+  string email = 2;
+  string name = 3;
+}
+
+message UpdateProfileNameResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -41,6 +41,12 @@ public class UserEntity {
     @Column(name = "has_completed_onboarding", nullable = false)
     private boolean hasCompletedOnboarding = false;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
+    @Column(name = "bio", length = 1000)
+    private String bio;
+
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 

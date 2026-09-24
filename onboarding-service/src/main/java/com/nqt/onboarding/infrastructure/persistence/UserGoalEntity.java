@@ -3,6 +3,8 @@ package com.nqt.onboarding.infrastructure.persistence;
 import com.nqt.onboarding.domain.GoalStatus;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -32,4 +34,9 @@ public class UserGoalEntity {
 
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;
+
+    // ➕ mới: ngày bắt đầu/kết thúc chu kỳ 4 tuần (giờ VN), gán ngay khi mục tiêu chuyển sang IN_PROGRESS.
+    // Nullable để không vỡ các dòng dữ liệu cũ tạo trước khi có 2 cột này (ddl-auto=update sẽ tự thêm cột NULL).
+    private LocalDate startDate;
+    private LocalDate endDate; // ngày cuối cùng của tuần 4, TÍNH CẢ ngày này (startDate + 27)
 }

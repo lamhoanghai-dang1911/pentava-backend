@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -21,5 +22,10 @@ public class CheckinRepositoryGatewayImpl implements CheckinRepositoryGateway {
     @Override
     public CheckinEntity save(CheckinEntity entity) {
         return jpaRepository.save(entity);
+    }
+
+    @Override
+    public List<CheckinEntity> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
+        return jpaRepository.findByUserIdAndCheckinDateBetweenOrderByCheckinDateAscCreatedAtAsc(userId, startDate, endDate);
     }
 }

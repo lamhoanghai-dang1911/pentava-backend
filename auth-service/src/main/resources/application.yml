@@ -49,6 +49,10 @@ google:
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9090}
+  client:
+    onboarding-service:
+      address: ${GRPC_ONBOARDING_SERVICE_ADDRESS:static://localhost:9092}
+      negotiation-type: plaintext
 
 logging:
   level:

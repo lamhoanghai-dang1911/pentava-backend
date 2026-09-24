@@ -10,4 +10,14 @@ import java.util.Optional;
 public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findByEmail(String email);
     Optional<UserEntity> findByResetToken(String resetToken);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT u FROM UserEntity u
+        WHERE u.id NOT IN :excludedIds
+        ORDER BY u.id DESC
+    """)
+    java.util.List<UserEntity> findSuggestedUsers(
+            @org.springframework.data.repository.query.Param("excludedIds") java.util.List<Long> excludedIds,
+            org.springframework.data.domain.Pageable pageable
+    );
 }

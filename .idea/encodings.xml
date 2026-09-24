@@ -16,6 +16,8 @@
     <file url="file://$PROJECT_DIR$/common-starter/target/generated-sources/protobuf/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/onboarding-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/onboarding-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/social-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/social-service/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
   </component>

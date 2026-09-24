@@ -40,13 +40,12 @@ springdoc:
     group: checkin-service
 
 grpc:
+  server:
+    port: ${CHECKIN_GRPC_PORT:9091}   # chỉ mở trong mạng Docker, không publish ra máy chủ
   client:
     auth-service:
       address: ${GRPC_AUTH_SERVICE_ADDRESS:static://localhost:9090}
       negotiation-type: plaintext
-    grpc:
-      server:
-        port: 9091
 
 logging:
   level:

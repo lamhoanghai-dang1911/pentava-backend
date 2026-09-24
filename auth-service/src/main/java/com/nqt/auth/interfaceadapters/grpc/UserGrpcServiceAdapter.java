@@ -1,6 +1,7 @@
 package com.nqt.auth.interfaceadapters.grpc;
 
 import com.nqt.auth.domain.User;
+import com.nqt.auth.infrastructure.persistence.UserEntity;
 import com.nqt.auth.usecase.boundary.GetUserQueryInputPort;
 import com.nqt.auth.usecase.dto.UserQueryResponseDTO;
 import com.nqt.auth.usecase.interactor.UserRepositoryGateway;
@@ -16,12 +17,15 @@ import java.util.Optional;
 public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase {
 
     private final GetUserQueryInputPort getUserQueryInputPort;
-    private final UserRepositoryGateway userRepositoryGateway; // 🚀 Inject trực tiếp Gateway/Repository vào đây
+    private final UserRepositoryGateway userRepositoryGateway;
+    private final com.nqt.auth.interfaceadapters.gateway.UserJpaRepository userJpaRepository;
 
     public UserGrpcServiceAdapter(GetUserQueryInputPort getUserQueryInputPort,
-                                  UserRepositoryGateway userRepositoryGateway) {
+                                  UserRepositoryGateway userRepositoryGateway,
+                                  com.nqt.auth.interfaceadapters.gateway.UserJpaRepository userJpaRepository) {
         this.getUserQueryInputPort = getUserQueryInputPort;
         this.userRepositoryGateway = userRepositoryGateway;
+        this.userJpaRepository = userJpaRepository;
     }
 
     @Override
@@ -81,12 +85,47 @@ public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase 
         }
     }
 
+    @Override
+    public void getSuggestedUsers(GetSuggestedUsersRequest request, StreamObserver<GetSuggestedUsersResponse> responseObserver) {
+        try {
+            int limit = request.getLimit() > 0 ? request.getLimit() : 20;
+            java.util.List<Long> excluded = new java.util.ArrayList<>(request.getExcludedUserIdsList());
+            if (request.getCurrentUserId() > 0 && !excluded.contains(request.getCurrentUserId())) {
+                excluded.add(request.getCurrentUserId());
+            }
+            if (excluded.isEmpty()) {
+                excluded.add(-1L);
+            }
+
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, limit);
+            java.util.List<UserEntity> candidates = userJpaRepository.findSuggestedUsers(excluded, pageable);
+
+            GetSuggestedUsersResponse.Builder builder = GetSuggestedUsersResponse.newBuilder();
+            for (UserEntity u : candidates) {
+                builder.addUsers(UserSocialProfile.newBuilder()
+                        .setId(u.getId())
+                        .setEmail(u.getEmail() != null ? u.getEmail() : "")
+                        .setName(u.getName() != null ? u.getName() : "")
+                        .setAvatarUrl(u.getAvatarUrl() != null ? u.getAvatarUrl() : "")
+                        .setBio(u.getBio() != null ? u.getBio() : "")
+                        .build());
+            }
+
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(e);
+        }
+    }
+
     private UserResponse toResponse(Optional<UserQueryResponseDTO> userOpt) {
         return userOpt
                 .map(u -> UserResponse.newBuilder()
                         .setId(u.getId())
                         .setEmail(u.getEmail())
                         .setName(u.getName() == null ? "" : u.getName())
+                        .setAvatarUrl(u.getAvatarUrl() == null ? "" : u.getAvatarUrl())
+                        .setBio(u.getBio() == null ? "" : u.getBio())
                         .setFound(true)
                         .build())
                 .orElse(UserResponse.newBuilder().setFound(false).build());
