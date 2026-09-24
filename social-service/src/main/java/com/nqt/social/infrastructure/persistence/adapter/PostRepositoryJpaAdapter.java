@@ -59,7 +59,8 @@ public class PostRepositoryJpaAdapter implements PostRepositoryGateway {
     @Override
     public List<Post> findAllAccessible(Long viewerId, List<Long> friendIds) {
         List<Long> friends = (friendIds == null || friendIds.isEmpty()) ? List.of(-1L) : friendIds;
-        return jpaRepository.findAllAccessiblePosts(viewerId, friends).stream()
+        Long effectiveViewerId = (viewerId != null) ? viewerId : -1L;
+        return jpaRepository.findAllAccessiblePosts(effectiveViewerId, friends).stream()
                 .map(this::toDomain)
                 .toList();
     }

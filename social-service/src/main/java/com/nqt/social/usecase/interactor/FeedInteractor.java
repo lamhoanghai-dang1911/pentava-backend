@@ -105,15 +105,22 @@ public class FeedInteractor implements FeedInputPort {
             return new FeedResponseDTO(Collections.emptyList(), null, false);
         }
 
-        List<Post> friendPosts = postRepositoryGateway.findFriendsPosts(friendIds);
-        if (friendPosts.isEmpty()) {
+        List<Post> rawFriendPosts = postRepositoryGateway.findFriendsPosts(friendIds);
+        if (rawFriendPosts.isEmpty()) {
             return new FeedResponseDTO(Collections.emptyList(), null, false);
         }
 
+        List<Post> friendPosts = new ArrayList<>(rawFriendPosts);
+
         // Bảng tin bạn bè sắp xếp theo thời gian mới nhất (chronological)
         friendPosts.sort((a, b) -> {
-            int cmp = b.getCreatedAt().compareTo(a.getCreatedAt());
-            return cmp != 0 ? cmp : Long.compare(b.getId(), a.getId());
+            LocalDateTime aTime = a.getCreatedAt() != null ? a.getCreatedAt() : LocalDateTime.MIN;
+            LocalDateTime bTime = b.getCreatedAt() != null ? b.getCreatedAt() : LocalDateTime.MIN;
+            int cmp = bTime.compareTo(aTime);
+            if (cmp != 0) return cmp;
+            Long aId = a.getId() != null ? a.getId() : 0L;
+            Long bId = b.getId() != null ? b.getId() : 0L;
+            return Long.compare(bId, aId);
         });
 
         // Xử lý cursor (timestampMillis:postId)
@@ -132,8 +139,10 @@ public class FeedInteractor implements FeedInputPort {
         if (cursorTimestamp != Long.MAX_VALUE) {
             for (int i = 0; i < friendPosts.size(); i++) {
                 Post p = friendPosts.get(i);
-                long pMillis = p.getCreatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
-                if (pMillis < cursorTimestamp || (pMillis == cursorTimestamp && p.getId() < cursorPostId)) {
+                LocalDateTime pTime = p.getCreatedAt() != null ? p.getCreatedAt() : LocalDateTime.now();
+                long pMillis = pTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+                long pId = p.getId() != null ? p.getId() : 0L;
+                if (pMillis < cursorTimestamp || (pMillis == cursorTimestamp && pId < cursorPostId)) {
                     startIndex = i;
                     break;
                 }
@@ -152,8 +161,10 @@ public class FeedInteractor implements FeedInputPort {
         String nextCursor = null;
         if (hasMore && !paged.isEmpty()) {
             Post last = paged.get(paged.size() - 1);
-            long millis = last.getCreatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
-            String raw = millis + ":" + last.getId();
+            LocalDateTime lastTime = last.getCreatedAt() != null ? last.getCreatedAt() : LocalDateTime.now();
+            long millis = lastTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+            long lastId = last.getId() != null ? last.getId() : 0L;
+            String raw = millis + ":" + lastId;
             nextCursor = Base64.getUrlEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
         }
 

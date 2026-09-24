@@ -35,16 +35,21 @@ public class FeedRecommendationEngine {
         scoredList.sort((a, b) -> {
             int cmp = Double.compare(b.score(), a.score());
             if (cmp != 0) return cmp;
-            int timeCmp = b.post().getCreatedAt().compareTo(a.post().getCreatedAt());
+            LocalDateTime aTime = a.post().getCreatedAt() != null ? a.post().getCreatedAt() : LocalDateTime.MIN;
+            LocalDateTime bTime = b.post().getCreatedAt() != null ? b.post().getCreatedAt() : LocalDateTime.MIN;
+            int timeCmp = bTime.compareTo(aTime);
             if (timeCmp != 0) return timeCmp;
-            return Long.compare(b.post().getId(), a.post().getId());
+            Long aId = a.post().getId() != null ? a.post().getId() : 0L;
+            Long bId = b.post().getId() != null ? b.post().getId() : 0L;
+            return Long.compare(bId, aId);
         });
 
         return scoredList;
     }
 
     private double calculateScore(Post post, LocalDateTime now, Set<Long> friendIds) {
-        double ageInHours = Math.max(0.1, Duration.between(post.getCreatedAt(), now).toMinutes() / 60.0);
+        LocalDateTime postTime = post.getCreatedAt() != null ? post.getCreatedAt() : now;
+        double ageInHours = Math.max(0.1, Duration.between(postTime, now).toMinutes() / 60.0);
 
         long totalInteractions = post.getHighFiveCount() + post.getCommentCount();
         double coldStart = (ageInHours < 24.0 && totalInteractions < 5) ? COLD_START_BONUS : 0.0;

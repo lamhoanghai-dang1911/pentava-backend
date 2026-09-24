@@ -19,9 +19,9 @@ public interface PostJpaRepository extends JpaRepository<PostEntity, Long> {
 
     @Query("""
         SELECT p FROM PostEntity p
-        WHERE p.privacyMode = 'PUBLIC'
-           OR (p.privacyMode = 'FRIENDS_ONLY' AND p.userId IN :friendIds)
-           OR (:viewerId IS NOT NULL AND p.userId = :viewerId)
+        WHERE p.privacyMode = com.nqt.social.domain.PrivacyMode.PUBLIC
+           OR (p.privacyMode = com.nqt.social.domain.PrivacyMode.FRIENDS_ONLY AND p.userId IN :friendIds)
+           OR (p.userId = :viewerId)
         ORDER BY p.createdAt DESC
     """)
     List<PostEntity> findAllAccessiblePosts(
@@ -32,7 +32,7 @@ public interface PostJpaRepository extends JpaRepository<PostEntity, Long> {
     @Query("""
         SELECT p FROM PostEntity p
         WHERE p.userId IN :friendIds
-          AND p.privacyMode IN ('PUBLIC', 'FRIENDS_ONLY')
+          AND (p.privacyMode = com.nqt.social.domain.PrivacyMode.PUBLIC OR p.privacyMode = com.nqt.social.domain.PrivacyMode.FRIENDS_ONLY)
         ORDER BY p.createdAt DESC
     """)
     List<PostEntity> findFriendsPosts(@Param("friendIds") List<Long> friendIds);

@@ -30,20 +30,20 @@ public interface FriendshipJpaRepository extends JpaRepository<FriendshipEntity,
         SELECT CASE WHEN f.requesterId = :userId THEN f.addresseeId ELSE f.requesterId END
         FROM FriendshipEntity f
         WHERE (f.requesterId = :userId OR f.addresseeId = :userId)
-          AND f.status = 'ACCEPTED'
+          AND f.status = com.nqt.social.domain.FriendshipStatus.ACCEPTED
     """)
     List<Long> findAcceptedFriendUserIds(@Param("userId") Long userId);
 
     @Query("""
         SELECT f FROM FriendshipEntity f
-        WHERE f.addresseeId = :userId AND f.status = 'PENDING'
+        WHERE f.addresseeId = :userId AND f.status = com.nqt.social.domain.FriendshipStatus.PENDING
         ORDER BY f.createdAt DESC
     """)
     List<FriendshipEntity> findPendingRequestsReceived(@Param("userId") Long userId);
 
     @Query("""
         SELECT f FROM FriendshipEntity f
-        WHERE f.requesterId = :userId AND f.status = 'PENDING'
+        WHERE f.requesterId = :userId AND f.status = com.nqt.social.domain.FriendshipStatus.PENDING
         ORDER BY f.createdAt DESC
     """)
     List<FriendshipEntity> findPendingRequestsSent(@Param("userId") Long userId);
@@ -51,7 +51,7 @@ public interface FriendshipJpaRepository extends JpaRepository<FriendshipEntity,
     @Query("""
         SELECT COUNT(f) FROM FriendshipEntity f
         WHERE (f.requesterId = :userId OR f.addresseeId = :userId)
-          AND f.status = 'ACCEPTED'
+          AND f.status = com.nqt.social.domain.FriendshipStatus.ACCEPTED
     """)
     long countAcceptedFriends(@Param("userId") Long userId);
 
