@@ -163,6 +163,61 @@ services:
     ports:
       - "8086:8086"
 
+  skin-service:
+    build:
+      context: .
+      target: skin-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skin
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      GRPC_AUTH_SERVICE_ADDRESS: static://auth-service:9090
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SKIN_BUCKET: ${SUPABASE_SKIN_BUCKET:-skin}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    ports:
+      - "8088:8088"
+      - "9095:9095"
+
+  shop-service:
+    build:
+      context: .
+      target: shop-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shop
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      GRPC_AUTH_SERVICE_ADDRESS: static://auth-service:9090
+      GRPC_SKIN_SERVICE_ADDRESS: static://skin-service:9095
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SKIN_BUCKET: ${SUPABASE_SKIN_BUCKET:-skin}
+      SEPAY_API_KEY: ${SEPAY_API_KEY}
+      SEPAY_BANK_CODE: ${SEPAY_BANK_CODE}
+      SEPAY_ACCOUNT_NUMBER: ${SEPAY_ACCOUNT_NUMBER}
+      SEPAY_ACCOUNT_NAME: ${SEPAY_ACCOUNT_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      skin-service:
+        condition: service_started
+    ports:
+      - "8087:8087"
+      - "9094:9094"
+
   api-gateway:
     build:
       context: .
@@ -176,12 +231,16 @@ services:
       CHECKIN_SERVICE_URI: http://checkin-service:8084
       CINEMA_SERVICE_URI: http://cinema-service:8085
       SOCIAL_SERVICE_URI: http://social-service:8086
+      SHOP_SERVICE_URI: http://shop-service:8087
+      SKIN_SERVICE_URI: http://skin-service:8088
     depends_on:
       - auth-service
       - checkin-service
       - onboarding-service
       - cinema-service
       - social-service
+      - shop-service
+      - skin-service
     ports:
       - "8080:8080"   # cổng duy nhất cần public ra ngoài qua Nginx sau này
 

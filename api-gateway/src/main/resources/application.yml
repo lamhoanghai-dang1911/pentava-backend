@@ -95,6 +95,34 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/social-service, /v3/api-docs
 
+        # 11. Định tuyến API của shop-service
+        - id: shop-service-route
+          uri: ${SHOP_SERVICE_URI:http://localhost:8087}
+          predicates:
+            - Path=/api/shop/**
+
+        # 12. Định tuyến file JSON tài liệu docs của shop-service
+        - id: shop-service-docs
+          uri: ${SHOP_SERVICE_URI:http://localhost:8087}
+          predicates:
+            - Path=/v3/api-docs/shop-service
+          filters:
+            - RewritePath=/v3/api-docs/shop-service, /v3/api-docs
+
+        # 13. Định tuyến API của skin-service
+        - id: skin-service-route
+          uri: ${SKIN_SERVICE_URI:http://localhost:8088}
+          predicates:
+            - Path=/api/skin/**
+
+        # 14. Định tuyến file JSON tài liệu docs của skin-service
+        - id: skin-service-docs
+          uri: ${SKIN_SERVICE_URI:http://localhost:8088}
+          predicates:
+            - Path=/v3/api-docs/skin-service
+          filters:
+            - RewritePath=/v3/api-docs/skin-service, /v3/api-docs
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -109,6 +137,10 @@ springdoc:
         url: /v3/api-docs/cinema-service
       - name: Social Service (Mạng xã hội)
         url: /v3/api-docs/social-service
+      - name: Shop Service (Cửa hàng & Nạp Ruby)
+        url: /v3/api-docs/shop-service
+      - name: Skin Service (Trang phục & Render Layer)
+        url: /v3/api-docs/skin-service
 
 logging:
   level:

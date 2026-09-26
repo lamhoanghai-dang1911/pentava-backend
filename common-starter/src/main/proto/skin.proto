@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package skin;
+
+option java_multiple_files = true;
+option java_package = "com.nqt.common.grpc.skin";
+option java_outer_classname = "SkinProto";
+
+service SkinInternalService {
+  rpc GetUserOwnedSkinIds(GetUserOwnedSkinIdsRequest) returns (GetUserOwnedSkinIdsResponse);
+  rpc GrantSkin(GrantSkinRequest) returns (GrantSkinResponse);
+  rpc CheckSkinOwned(CheckSkinOwnedRequest) returns (CheckSkinOwnedResponse);
+}
+
+message GetUserOwnedSkinIdsRequest {
+  int64 user_id = 1;
+}
+
+message GetUserOwnedSkinIdsResponse {
+  repeated int64 skin_item_ids = 1;
+}
+
+message GrantSkinRequest {
+  int64 user_id = 1;
+  int64 skin_item_id = 2;
+}
+
+message GrantSkinResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CheckSkinOwnedRequest {
+  int64 user_id = 1;
+  int64 skin_item_id = 2;
+}
+
+message CheckSkinOwnedResponse {
+  bool owned = 1;
+}
