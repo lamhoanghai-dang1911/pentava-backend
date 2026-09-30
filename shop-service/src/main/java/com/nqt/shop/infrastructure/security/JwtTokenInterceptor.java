@@ -35,7 +35,7 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         boolean isPublic = uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/swagger-ui") ||
                 uri.startsWith("/api/shop/webhook") ||
-                ("GET".equalsIgnoreCase(request.getMethod()) && (uri.equals("/api/shop/items") || uri.equals("/api/shop/catalog"))) ||
+                ("GET".equalsIgnoreCase(request.getMethod()) && (uri.equals("/api/shop/items") || uri.equals("/api/shop/catalog") || uri.equals("/api/shop/topup/packages"))) ||
                 uri.startsWith("/api/shop/topup/mock-confirm");
 
         String authHeader = request.getHeader("Authorization");

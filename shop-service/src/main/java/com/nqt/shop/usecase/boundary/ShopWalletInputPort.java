@@ -6,6 +6,8 @@ import java.util.List;
 
 public interface ShopWalletInputPort {
     WalletResponseDTO getWallet(Long userId);
+    RubyTopupPricingResponseDTO getTopupPricing();
+    TopupInitResponseDTO initTopup(Long userId, TopupInitRequestDTO request);
     TopupInitResponseDTO initTopup(Long userId, Long amountVnd);
     void handleSepayWebhook(SepayWebhookPayloadDTO payload, String authHeader);
     void mockConfirmTopup(String transactionCode);

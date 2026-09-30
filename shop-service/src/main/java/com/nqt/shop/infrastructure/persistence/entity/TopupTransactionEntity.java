@@ -36,6 +36,12 @@ public class TopupTransactionEntity {
     @Column(name = "ruby_amount", nullable = false)
     private long rubyAmount;
 
+    @Column(name = "package_code", length = 32)
+    private String packageCode;
+
+    @Column(name = "package_name", length = 128)
+    private String packageName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private TopupStatus status;

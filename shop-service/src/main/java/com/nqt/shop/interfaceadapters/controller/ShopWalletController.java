@@ -2,10 +2,7 @@ package com.nqt.shop.interfaceadapters.controller;
 
 import com.nqt.shop.infrastructure.security.CurrentUserProvider;
 import com.nqt.shop.usecase.boundary.ShopWalletInputPort;
-import com.nqt.shop.usecase.dto.TopupHistoryResponseDTO;
-import com.nqt.shop.usecase.dto.TopupInitRequestDTO;
-import com.nqt.shop.usecase.dto.TopupInitResponseDTO;
-import com.nqt.shop.usecase.dto.WalletResponseDTO;
+import com.nqt.shop.usecase.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,6 +22,12 @@ public class ShopWalletController {
     private final ShopWalletInputPort shopWalletInputPort;
     private final CurrentUserProvider currentUserProvider;
 
+    @Operation(summary = "Xem bảng giá nạp Ruby (tỷ lệ nạp lẻ 10 Ruby = 20.000 VNĐ và các gói Small, Medium, Large Pack)")
+    @GetMapping("/topup/packages")
+    public ResponseEntity<RubyTopupPricingResponseDTO> getTopupPackages() {
+        return ResponseEntity.ok(shopWalletInputPort.getTopupPricing());
+    }
+
     @Operation(summary = "Xem số dư Ruby trong ví của người dùng hiện tại")
     @GetMapping("/wallet/me")
     public ResponseEntity<WalletResponseDTO> getMyWallet() {
@@ -32,11 +35,11 @@ public class ShopWalletController {
         return ResponseEntity.ok(shopWalletInputPort.getWallet(userId));
     }
 
-    @Operation(summary = "Khởi tạo yêu cầu nạp tiền quy đổi Ruby (Tạo mã QR SePay / VietQR để người dùng chuyển khoản)")
+    @Operation(summary = "Khởi tạo yêu cầu nạp tiền quy đổi Ruby (Chọn gói nạp hoặc nạp lẻ để tạo mã QR SePay / VietQR)")
     @PostMapping("/topup/init")
     public ResponseEntity<TopupInitResponseDTO> initTopup(@Valid @RequestBody TopupInitRequestDTO request) {
         Long userId = currentUserProvider.resolveCurrentUserId();
-        return ResponseEntity.ok(shopWalletInputPort.initTopup(userId, request.getAmountVnd()));
+        return ResponseEntity.ok(shopWalletInputPort.initTopup(userId, request));
     }
 
     @Operation(summary = "Xem lịch sử các giao dịch nạp tiền của người dùng")

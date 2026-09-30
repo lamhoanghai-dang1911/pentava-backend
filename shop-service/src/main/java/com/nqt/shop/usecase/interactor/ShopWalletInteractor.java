@@ -1,5 +1,6 @@
 package com.nqt.shop.usecase.interactor;
 
+import com.nqt.shop.domain.model.RubyPackage;
 import com.nqt.shop.domain.model.TopupStatus;
 import com.nqt.shop.infrastructure.persistence.entity.TopupTransactionEntity;
 import com.nqt.shop.infrastructure.persistence.entity.UserWalletEntity;
@@ -17,7 +18,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -26,6 +29,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ShopWalletInteractor implements ShopWalletInputPort {
+
+    public static final long BASE_VND_PER_RUBY = 2000L;
+    public static final long MIN_RUBY = 10L;
+    public static final long MIN_AMOUNT_VND = 20000L;
 
     private final UserWalletRepository userWalletRepository;
     private final TopupTransactionRepository topupTransactionRepository;
@@ -62,14 +69,112 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public RubyTopupPricingResponseDTO getTopupPricing() {
+        List<RubyPackageDTO> packageDTOs = Arrays.stream(RubyPackage.values())
+                .map(p -> RubyPackageDTO.builder()
+                        .code(p.getCode())
+                        .name(p.getName())
+                        .rubyAmount(p.getRubyAmount())
+                        .priceVnd(p.getPriceVnd())
+                        .originalPriceVnd(p.getRubyAmount() * BASE_VND_PER_RUBY)
+                        .discountVnd(p.getDiscountVnd())
+                        .bonusRuby(p.getBonusRuby())
+                        .description(p.getDescription())
+                        .isPopular(p.isPopular())
+                        .isBestValue(p.isBestValue())
+                        .build())
+                .toList();
+
+        return RubyTopupPricingResponseDTO.builder()
+                .baseRateVndPerRuby(BASE_VND_PER_RUBY)
+                .minCustomTopupVnd(MIN_AMOUNT_VND)
+                .minCustomTopupRuby(MIN_RUBY)
+                .customTopupRule("10 ruby = 20.000 VNĐ (1 ruby = 2.000 VNĐ, tối thiểu 10 ruby)")
+                .packages(packageDTOs)
+                .build();
+    }
+
+    @Override
     @Transactional
     public TopupInitResponseDTO initTopup(Long userId, Long amountVnd) {
-        if (amountVnd == null || amountVnd < 10000) {
-            throw new IllegalArgumentException("Số tiền nạp tối thiểu là 10.000 VNĐ");
+        return initTopup(userId, TopupInitRequestDTO.builder().amountVnd(amountVnd).build());
+    }
+
+    @Override
+    @Transactional
+    public TopupInitResponseDTO initTopup(Long userId, TopupInitRequestDTO request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Yêu cầu nạp tiền không hợp lệ");
         }
 
-        // Tỷ lệ quy đổi: 1.000 VNĐ = 1 Ruby
-        long rubyAmount = amountVnd / 1000;
+        String packageCode;
+        String packageName;
+        String description;
+        long amountVnd;
+        long rubyAmount;
+
+        // 1. Trường hợp người dùng chọn gói nạp Ruby
+        if (request.getPackageCode() != null && !request.getPackageCode().isBlank()) {
+            RubyPackage pack = RubyPackage.fromCode(request.getPackageCode())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Gói nạp Ruby không hợp lệ: '" + request.getPackageCode() + "'. Các gói hợp lệ: SMALL, MEDIUM, LARGE"
+                    ));
+            packageCode = pack.getCode();
+            packageName = pack.getName();
+            amountVnd = pack.getPriceVnd();
+            rubyAmount = pack.getRubyAmount();
+            description = pack.getDescription();
+        }
+        // 2. Trường hợp nạp lẻ hoặc người dùng truyền số tiền VNĐ
+        else if (request.getAmountVnd() != null && request.getAmountVnd() > 0) {
+            Optional<RubyPackage> matchedPack = RubyPackage.fromAmountVnd(request.getAmountVnd());
+            if (matchedPack.isPresent()) {
+                RubyPackage pack = matchedPack.get();
+                packageCode = pack.getCode();
+                packageName = pack.getName();
+                amountVnd = pack.getPriceVnd();
+                rubyAmount = pack.getRubyAmount();
+                description = pack.getDescription();
+            } else {
+                if (request.getAmountVnd() < MIN_AMOUNT_VND) {
+                    throw new IllegalArgumentException("Số tiền nạp tối thiểu là 20.000 VNĐ (tương đương 10 Ruby)");
+                }
+                if (request.getAmountVnd() % BASE_VND_PER_RUBY != 0) {
+                    throw new IllegalArgumentException("Số tiền nạp lẻ phải là bội số của 2.000 VNĐ (10 Ruby = 20.000 VNĐ)");
+                }
+                packageCode = "CUSTOM";
+                packageName = "Nạp lẻ";
+                amountVnd = request.getAmountVnd();
+                rubyAmount = amountVnd / BASE_VND_PER_RUBY;
+                description = String.format("Nạp lẻ %d Ruby = %,d VNĐ", rubyAmount, amountVnd);
+            }
+        }
+        // 3. Trường hợp nạp lẻ truyền số Ruby mong muốn
+        else if (request.getRubyAmount() != null && request.getRubyAmount() > 0) {
+            Optional<RubyPackage> matchedPack = RubyPackage.fromRubyAmount(request.getRubyAmount());
+            if (matchedPack.isPresent()) {
+                RubyPackage pack = matchedPack.get();
+                packageCode = pack.getCode();
+                packageName = pack.getName();
+                amountVnd = pack.getPriceVnd();
+                rubyAmount = pack.getRubyAmount();
+                description = pack.getDescription();
+            } else {
+                if (request.getRubyAmount() < MIN_RUBY) {
+                    throw new IllegalArgumentException("Số Ruby nạp tối thiểu là 10 Ruby (tương đương 20.000 VNĐ)");
+                }
+                packageCode = "CUSTOM";
+                packageName = "Nạp lẻ";
+                rubyAmount = request.getRubyAmount();
+                amountVnd = rubyAmount * BASE_VND_PER_RUBY;
+                description = String.format("Nạp lẻ %d Ruby = %,d VNĐ", rubyAmount, amountVnd);
+            }
+        }
+        // 4. Không có thông tin hợp lệ
+        else {
+            throw new IllegalArgumentException("Vui lòng chọn gói nạp Ruby (SMALL, MEDIUM, LARGE) hoặc nhập số tiền nạp lẻ (tối thiểu 20.000 VNĐ = 10 Ruby)");
+        }
 
         // Sinh mã giao dịch: ví dụ PENTAVA849201
         String txCode = "PENTAVA" + (100000 + RANDOM.nextInt(900000));
@@ -79,6 +184,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                 .transactionCode(txCode)
                 .amountVnd(amountVnd)
                 .rubyAmount(rubyAmount)
+                .packageCode(packageCode)
+                .packageName(packageName)
                 .status(TopupStatus.PENDING)
                 .paymentMethod("SEPAY")
                 .bankCode(sepayBankCode)
@@ -98,13 +205,16 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                 URLEncoder.encode(txCode, StandardCharsets.UTF_8)
         );
 
-        log.info("Initialized topup for user {}: txCode={}, amountVnd={}, rubyAmount={}",
-                userId, txCode, amountVnd, rubyAmount);
+        log.info("Initialized topup for user {}: txCode={}, package={}, amountVnd={}, rubyAmount={}",
+                userId, txCode, packageCode, amountVnd, rubyAmount);
 
         return TopupInitResponseDTO.builder()
                 .transactionCode(txCode)
                 .amountVnd(amountVnd)
                 .rubyAmount(rubyAmount)
+                .packageCode(packageCode)
+                .packageName(packageName)
+                .description(description)
                 .bankCode(sepayBankCode)
                 .accountNumber(sepayAccountNumber)
                 .accountName(sepayAccountName)
@@ -213,6 +323,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                         .transactionCode(tx.getTransactionCode())
                         .amountVnd(tx.getAmountVnd())
                         .rubyAmount(tx.getRubyAmount())
+                        .packageCode(tx.getPackageCode())
+                        .packageName(tx.getPackageName())
                         .status(tx.getStatus())
                         .paymentMethod(tx.getPaymentMethod())
                         .createdAt(tx.getCreatedAt())

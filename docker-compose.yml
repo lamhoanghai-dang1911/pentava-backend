@@ -218,6 +218,30 @@ services:
       - "8087:8087"
       - "9094:9094"
 
+  manage-service:
+    build:
+      context: .
+      target: manage-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/manage
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      GRPC_AUTH_SERVICE_ADDRESS: static://auth-service:9090
+      GRPC_ONBOARDING_SERVICE_ADDRESS: static://onboarding-service:9092
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      onboarding-service:
+        condition: service_started
+    ports:
+      - "8089:8089"
+
   api-gateway:
     build:
       context: .
@@ -233,6 +257,7 @@ services:
       SOCIAL_SERVICE_URI: http://social-service:8086
       SHOP_SERVICE_URI: http://shop-service:8087
       SKIN_SERVICE_URI: http://skin-service:8088
+      MANAGE_SERVICE_URI: http://manage-service:8089
     depends_on:
       - auth-service
       - checkin-service
@@ -241,6 +266,7 @@ services:
       - social-service
       - shop-service
       - skin-service
+      - manage-service
     ports:
       - "8080:8080"   # cổng duy nhất cần public ra ngoài qua Nginx sau này
 

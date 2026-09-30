@@ -28,6 +28,7 @@ COPY cinema-service/pom.xml cinema-service/pom.xml
 COPY social-service/pom.xml social-service/pom.xml
 COPY shop-service/pom.xml shop-service/pom.xml
 COPY skin-service/pom.xml skin-service/pom.xml
+COPY manage-service/pom.xml manage-service/pom.xml
 
 # Tải dependency trước (cache riêng bước này, đỡ tải lại khi chỉ đổi code)
 RUN mvn -B -q dependency:go-offline || true
@@ -42,6 +43,7 @@ COPY cinema-service ./cinema-service
 COPY social-service ./social-service
 COPY shop-service ./shop-service
 COPY skin-service ./skin-service
+COPY manage-service ./manage-service
 
 # Build toàn bộ reactor (common-starter sẽ được install vào .m2 local
 # trong image build này để các service khác dùng được)
@@ -112,4 +114,11 @@ WORKDIR /app
 COPY --from=build /workspace/skin-service/target/skin-service-*.jar app.jar
 EXPOSE 8088
 EXPOSE 9095
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# ---------- STAGE 10: manage-service ----------
+FROM eclipse-temurin:21-jre AS manage-service
+WORKDIR /app
+COPY --from=build /workspace/manage-service/target/manage-service-*.jar app.jar
+EXPOSE 8089
 ENTRYPOINT ["java", "-jar", "app.jar"]

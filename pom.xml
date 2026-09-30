@@ -19,6 +19,7 @@
         <module>social-service</module>
         <module>shop-service</module>
         <module>skin-service</module>
+        <module>manage-service</module>
     </modules>
 
     <properties>
