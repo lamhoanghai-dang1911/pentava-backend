@@ -39,6 +39,9 @@ public class ShopItemEntity {
     @Column(name = "image_url", nullable = false, length = 500)
     private String imageUrl;
 
+    @Column(name = "thumbnail_url", length = 500)
+    private String thumbnailUrl;
+
     @Column(length = 500)
     private String description;
 

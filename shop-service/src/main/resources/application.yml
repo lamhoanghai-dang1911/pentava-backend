@@ -21,6 +21,7 @@ jwt:
 supabase:
   url: ${SUPABASE_URL:https://olgtvgfgpaydkopjhern.supabase.co}
   skin-bucket: ${SUPABASE_SKIN_BUCKET:skin}
+  thumbnail-bucket: ${SUPABASE_THUMBNAIL_BUCKET:shop_thumbnail}
 
 sepay:
   api-key: ${SEPAY_API_KEY:your_sepay_api_key_here}

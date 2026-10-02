@@ -5,6 +5,7 @@ import com.nqt.shop.usecase.boundary.ShopCatalogInputPort;
 import com.nqt.shop.usecase.boundary.ShopPurchaseInputPort;
 import com.nqt.shop.usecase.dto.BuyItemResponseDTO;
 import com.nqt.shop.usecase.dto.ShopItemResponseDTO;
+import com.nqt.shop.usecase.dto.ShopThumbnailResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +24,17 @@ public class ShopCatalogController {
     private final ShopPurchaseInputPort shopPurchaseInputPort;
     private final CurrentUserProvider currentUserProvider;
 
-    @Operation(summary = "Xem danh sách skin đang bán trong cửa hàng (tự động hiển thị trạng thái Đã sở hữu hay Chưa sở hữu)")
+    @Operation(summary = "Xem danh sách skin đang bán trong cửa hàng (tự động hiển thị trạng thái Đã sở hữu hay Chưa sở hữu và đầy đủ thumbnail layers)")
     @GetMapping("/items")
     public ResponseEntity<List<ShopItemResponseDTO>> getCatalog() {
         Long userId = currentUserProvider.getOptionalCurrentUserId().orElse(null);
         return ResponseEntity.ok(shopCatalogInputPort.getCatalog(userId));
+    }
+
+    @Operation(summary = "Lấy danh sách thumbnail của tất cả skin trong shop (kèm các layer render theo thứ tự: item_background -> item)")
+    @GetMapping("/thumbnails")
+    public ResponseEntity<List<ShopThumbnailResponseDTO>> getShopThumbnails() {
+        return ResponseEntity.ok(shopCatalogInputPort.getShopThumbnails());
     }
 
     @Operation(summary = "Mua một skin trong cửa hàng bằng Ruby (trừ Ruby và tự động cấp skin vào kho đồ nhân vật)")

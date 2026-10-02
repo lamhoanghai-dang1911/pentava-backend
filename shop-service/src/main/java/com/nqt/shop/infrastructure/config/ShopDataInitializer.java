@@ -23,15 +23,32 @@ public class ShopDataInitializer implements CommandLineRunner {
     @Value("${supabase.skin-bucket:skin}")
     private String skinBucket;
 
+    @Value("${supabase.thumbnail-bucket:shop_thumbnail}")
+    private String thumbnailBucket;
+
     @Override
     public void run(String... args) {
+        String baseUrl = supabaseUrl.replaceAll("/+$", "") + "/storage/v1/object/public/" + skinBucket + "/";
+        String thumbnailBaseUrl = supabaseUrl.replaceAll("/+$", "") + "/storage/v1/object/public/" + thumbnailBucket + "/";
+
         if (shopItemRepository.count() > 0) {
             log.info("Shop items already initialized, count = {}", shopItemRepository.count());
+            List<ShopItemEntity> existingItems = shopItemRepository.findAll();
+            boolean updated = false;
+            for (ShopItemEntity item : existingItems) {
+                if (item.getThumbnailUrl() == null || item.getThumbnailUrl().isBlank()) {
+                    item.setThumbnailUrl(thumbnailBaseUrl + item.getCode() + "_background.png");
+                    updated = true;
+                }
+            }
+            if (updated) {
+                shopItemRepository.saveAll(existingItems);
+                log.info("Backfilled thumbnail URLs for {} existing shop items.", existingItems.size());
+            }
             return;
         }
 
-        log.info("Initializing default shop items...");
-        String baseUrl = supabaseUrl.replaceAll("/+$", "") + "/storage/v1/object/public/" + skinBucket + "/";
+        log.info("Initializing default shop items with thumbnails from bucket '{}'...", thumbnailBucket);
 
         // Lưu ý: skinItemId tương ứng với ID của SkinItemEntity trong skin-service (cat_base là 1)
         List<ShopItemEntity> defaultItems = List.of(
@@ -42,6 +59,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("NECK")
                         .priceRuby(20)
                         .imageUrl(baseUrl + "yellow_scarf.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "yellow_scarf_background.png")
                         .description("Khăn len quàng cổ màu vàng ấm áp")
                         .isForSale(true)
                         .build(),
@@ -53,6 +71,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("EYES")
                         .priceRuby(25)
                         .imageUrl(baseUrl + "blue_sunglasses.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "blue_sunglasses_background.png")
                         .description("Kính râm viền xanh thời thượng")
                         .isForSale(true)
                         .build(),
@@ -64,6 +83,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("EYES")
                         .priceRuby(25)
                         .imageUrl(baseUrl + "yellow_sunglasses.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "yellow_sunglasses_background.png")
                         .description("Kính râm viền vàng cá tính")
                         .isForSale(true)
                         .build(),
@@ -75,6 +95,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("HEAD")
                         .priceRuby(30)
                         .imageUrl(baseUrl + "blue_hat.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "blue_hat_background.png")
                         .description("Chiếc mũ snapback màu xanh năng động")
                         .isForSale(true)
                         .build(),
@@ -86,6 +107,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("HEAD")
                         .priceRuby(60)
                         .imageUrl(baseUrl + "crown.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "crown_background.png")
                         .description("Vương miện vàng quyền quý dành cho quý tộc mèo")
                         .isForSale(true)
                         .build(),
@@ -97,6 +119,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("ACCESSORY")
                         .priceRuby(15)
                         .imageUrl(baseUrl + "blue_fish.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "blue_fish_background.png")
                         .description("Chú cá xanh thơm ngon")
                         .isForSale(true)
                         .build(),
@@ -108,6 +131,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("ACCESSORY")
                         .priceRuby(15)
                         .imageUrl(baseUrl + "pink_fish.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "pink_fish_background.png")
                         .description("Chú cá hồng dễ thương")
                         .isForSale(true)
                         .build(),
@@ -119,6 +143,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("ACCESSORY")
                         .priceRuby(35)
                         .imageUrl(baseUrl + "carton_fish.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "carton_fish_background.png")
                         .description("Thùng carton đầy ắp cá tươi dành cho mèo sành ăn")
                         .isForSale(true)
                         .build()

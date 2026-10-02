@@ -5,8 +5,10 @@ import com.nqt.shop.infrastructure.persistence.repository.ShopItemRepository;
 import com.nqt.shop.usecase.boundary.ShopCatalogInputPort;
 import com.nqt.shop.usecase.boundary.SkinServiceGateway;
 import com.nqt.shop.usecase.dto.ShopItemResponseDTO;
+import com.nqt.shop.usecase.dto.ShopThumbnailResponseDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,12 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
     private final ShopItemRepository shopItemRepository;
     private final SkinServiceGateway skinServiceGateway;
 
+    @Value("${supabase.url:https://olgtvgfgpaydkopjhern.supabase.co}")
+    private String supabaseUrl;
+
+    @Value("${supabase.thumbnail-bucket:shop_thumbnail}")
+    private String thumbnailBucket;
+
     @Override
     @Transactional(readOnly = true)
     public List<ShopItemResponseDTO> getCatalog(Long userId) {
@@ -37,6 +45,8 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
             ownedSkinIds = Collections.emptySet();
         }
 
+        String itemBackgroundUrl = getItemBackgroundUrl();
+
         return items.stream()
                 .map(item -> ShopItemResponseDTO.builder()
                         .id(item.getId())
@@ -46,9 +56,44 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
                         .slot(item.getSlot())
                         .priceRuby(item.getPriceRuby())
                         .imageUrl(item.getImageUrl())
+                        .itemBackgroundUrl(itemBackgroundUrl)
+                        .thumbnailUrl(item.getThumbnailUrl())
+                        .thumbnailLayers(buildThumbnailLayers(item.getThumbnailUrl()))
                         .description(item.getDescription())
                         .isOwned(ownedSkinIds.contains(item.getSkinItemId()))
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShopThumbnailResponseDTO> getShopThumbnails() {
+        List<ShopItemEntity> items = shopItemRepository.findByIsForSaleTrue();
+        String itemBackgroundUrl = getItemBackgroundUrl();
+
+        return items.stream()
+                .map(item -> ShopThumbnailResponseDTO.builder()
+                        .shopItemId(item.getId())
+                        .skinItemId(item.getSkinItemId())
+                        .code(item.getCode())
+                        .name(item.getName())
+                        .slot(item.getSlot())
+                        .itemBackgroundUrl(itemBackgroundUrl)
+                        .thumbnailUrl(item.getThumbnailUrl())
+                        .thumbnailLayers(buildThumbnailLayers(item.getThumbnailUrl()))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private String getItemBackgroundUrl() {
+        return supabaseUrl.replaceAll("/+$", "") + "/storage/v1/object/public/" + thumbnailBucket + "/item_background.png";
+    }
+
+    private List<String> buildThumbnailLayers(String thumbnailUrl) {
+        String bg = getItemBackgroundUrl();
+        if (thumbnailUrl != null && !thumbnailUrl.isBlank()) {
+            return List.of(bg, thumbnailUrl);
+        }
+        return List.of(bg);
     }
 }

@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,6 +19,9 @@ public class ShopItemResponseDTO {
     private String slot;
     private int priceRuby;
     private String imageUrl;
+    private String itemBackgroundUrl;
+    private String thumbnailUrl;
+    private List<String> thumbnailLayers;
     private String description;
     private boolean isOwned;
 }
