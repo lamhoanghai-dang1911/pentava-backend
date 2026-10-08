@@ -1,0 +1,36 @@
+services:
+  auth-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  checkin-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  onboarding-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  cinema-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  social-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  skin-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  shop-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  manage-service:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"
+
+  api-gateway:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m"

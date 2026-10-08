@@ -32,11 +32,26 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         }
 
         String uri = request.getRequestURI();
+        String internalCaller = request.getHeader("X-Internal-Caller");
+        boolean isInternalManageService = "manage-service".equalsIgnoreCase(internalCaller);
+
         boolean isPublic = uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/swagger-ui") ||
                 uri.startsWith("/api/shop/webhook") ||
-                ("GET".equalsIgnoreCase(request.getMethod()) && (uri.equals("/api/shop/items") || uri.equals("/api/shop/catalog") || uri.equals("/api/shop/topup/packages"))) ||
-                uri.startsWith("/api/shop/topup/mock-confirm");
+                ("GET".equalsIgnoreCase(request.getMethod()) && (
+                        uri.equals("/api/shop/items") ||
+                        uri.equals("/api/shop/catalog") ||
+                        uri.equals("/api/shop/topup/packages") ||
+                        uri.equals("/api/shop/subscription/plans")
+                )) ||
+                uri.startsWith("/api/shop/topup/mock-confirm") ||
+                uri.startsWith("/api/shop/subscription/mock-confirm") ||
+                uri.startsWith("/api/shop/subscription/entitlement") ||
+                (isInternalManageService && uri.startsWith("/api/shop/admin/"));
+
+        if (isInternalManageService && uri.startsWith("/api/shop/admin/")) {
+            return true;
+        }
 
         String authHeader = request.getHeader("Authorization");
 
@@ -49,8 +64,21 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
                         .getPayload();
 
                 String email = claims.getSubject();
+                String role = claims.get("role", String.class);
+
                 if (email != null && !email.isBlank()) {
                     request.setAttribute("currentEmail", email);
+                    request.setAttribute("currentRole", role);
+
+                    // Nếu là endpoint admin thì yêu cầu quyền ADMIN
+                    if (uri.startsWith("/api/shop/admin/")) {
+                        if (!"ROLE_ADMIN".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {
+                            log.warn("Truy cập bị từ chối: Tài khoản '{}' có role='{}' không có quyền ADMIN trên URI {}", email, role, uri);
+                            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Quyền truy cập chỉ dành riêng cho Quản trị viên (ADMIN)");
+                            return false;
+                        }
+                    }
+
                     return true;
                 }
             } catch (Exception e) {

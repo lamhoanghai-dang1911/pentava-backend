@@ -234,12 +234,15 @@ services:
       GRPC_ONBOARDING_SERVICE_ADDRESS: static://onboarding-service:9092
       JWT_SECRET: ${JWT_SECRET}
       OPENAPI_SERVER_URL: ${OPENAPI_SERVER_URL:-http://localhost:8080}
+      SHOP_SERVICE_URI: http://shop-service:8087
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
         condition: service_started
       onboarding-service:
+        condition: service_started
+      shop-service:
         condition: service_started
     ports:
       - "8089:8089"

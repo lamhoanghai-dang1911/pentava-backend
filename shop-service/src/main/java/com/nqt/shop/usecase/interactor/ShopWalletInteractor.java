@@ -36,6 +36,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
 
     private final UserWalletRepository userWalletRepository;
     private final TopupTransactionRepository topupTransactionRepository;
+    private final com.nqt.shop.infrastructure.persistence.repository.SubscriptionOrderRepository subscriptionOrderRepository;
+    private final com.nqt.shop.usecase.boundary.SubscriptionInputPort subscriptionInputPort;
 
     @Value("${sepay.api-key:your_sepay_api_key_here}")
     private String sepayApiKey;
@@ -267,7 +269,18 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                 .orElse(null);
 
         if (tx == null) {
-            log.warn("Không tìm thấy giao dịch với mã: {}", finalTxCode);
+            com.nqt.shop.infrastructure.persistence.entity.SubscriptionOrderEntity subOrder = subscriptionOrderRepository
+                    .findByTransactionCode(finalTxCode)
+                    .orElse(null);
+
+            if (subOrder != null) {
+                log.info("Xác thực thấy mã giao dịch {} thuộc đơn mua gói cước (Plan: {}). Chuyển tiếp xử lý...",
+                        finalTxCode, subOrder.getPlan().getCode());
+                subscriptionInputPort.processSubscriptionOrderPayment(subOrder, payload);
+                return;
+            }
+
+            log.warn("Không tìm thấy giao dịch nạp Ruby hoặc mua gói cước với mã: {}", finalTxCode);
             return;
         }
 
