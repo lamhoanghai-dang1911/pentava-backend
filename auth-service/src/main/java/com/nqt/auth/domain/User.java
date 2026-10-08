@@ -16,6 +16,13 @@ public class User {
     private String otpCode;
     private LocalDateTime otpExpiryTime;
     private boolean isVerified;
+    @Builder.Default
+    private String role = "ROLE_USER";
+
+    public String getRole() {
+        return (role != null && !role.isBlank()) ? role : "ROLE_USER";
+    }
+
     private boolean hasCompletedOnboarding;
     private String avatarUrl;
     private String bio;

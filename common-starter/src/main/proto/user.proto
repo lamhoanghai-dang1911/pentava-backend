@@ -18,6 +18,9 @@ service UserService {
 
   // ➕ Thêm rpc lấy danh sách gợi ý kết bạn
   rpc GetSuggestedUsers(GetSuggestedUsersRequest) returns (GetSuggestedUsersResponse);
+
+  // ➕ Thêm rpc lấy danh sách tất cả người dùng cho admin
+  rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
 }
 
 message GetUserByEmailRequest {
@@ -35,6 +38,10 @@ message UserResponse {
   bool found = 4;
   string avatar_url = 5;
   string bio = 6;
+  string role = 7;
+  bool is_verified = 8;
+  bool has_completed_onboarding = 9;
+  string created_at = 10;
 }
 
 // ➕ Các message mới cho việc cập nhật onboarding
@@ -65,4 +72,26 @@ message UserSocialProfile {
 
 message GetSuggestedUsersResponse {
   repeated UserSocialProfile users = 1;
+}
+
+// ➕ Các message cho việc lấy danh sách tất cả người dùng (Admin)
+message GetAllUsersRequest {
+  string search = 1;
+}
+
+message AdminUserItemResponse {
+  int64 id = 1;
+  string email = 2;
+  string name = 3;
+  string role = 4;
+  string avatar_url = 5;
+  string bio = 6;
+  bool is_verified = 7;
+  bool has_completed_onboarding = 8;
+  string created_at = 9;
+}
+
+message GetAllUsersResponse {
+  repeated AdminUserItemResponse users = 1;
+  int64 total_count = 2;
 }

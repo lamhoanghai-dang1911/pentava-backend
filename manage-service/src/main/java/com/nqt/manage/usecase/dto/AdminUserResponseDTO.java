@@ -16,8 +16,10 @@ public class AdminUserResponseDTO {
      * Tên người dùng lấy từ onboarding-service (KHÔNG lấy từ auth-service)
      */
     private String name;
+    private String role;
     private String avatarUrl;
     private String bio;
     private Boolean isVerified;
     private Boolean hasCompletedOnboarding;
+    private String createdAt;
 }

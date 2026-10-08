@@ -45,9 +45,12 @@ public class AuthGrpcClientAdapter implements AuthServiceGateway {
                     // ⚠️ KHÔNG lấy response.getName() ở đây vì auth-service không lưu tên chính xác.
                     // Tên sẽ do usecase layer gọi sang onboarding-service để lấy.
                     .name("")
+                    .role(response.getRole())
                     .avatarUrl(response.getAvatarUrl())
                     .bio(response.getBio())
-                    .isVerified(response.getFound())
+                    .isVerified(response.getIsVerified())
+                    .hasCompletedOnboarding(response.getHasCompletedOnboarding())
+                    .createdAt(response.getCreatedAt())
                     .build());
         } catch (Exception e) {
             log.error("Lỗi khi gọi gRPC getUserId sang auth-service cho userId {}: {}", userId, e.getMessage(), e);
@@ -76,9 +79,12 @@ public class AuthGrpcClientAdapter implements AuthServiceGateway {
                     .email(response.getEmail())
                     // ⚠️ KHÔNG lấy response.getName(), name sẽ lấy từ onboarding-service
                     .name("")
+                    .role(response.getRole())
                     .avatarUrl(response.getAvatarUrl())
                     .bio(response.getBio())
-                    .isVerified(response.getFound())
+                    .isVerified(response.getIsVerified())
+                    .hasCompletedOnboarding(response.getHasCompletedOnboarding())
+                    .createdAt(response.getCreatedAt())
                     .build());
         } catch (Exception e) {
             log.error("Lỗi khi gọi gRPC getUserByEmail sang auth-service cho email {}: {}", email, e.getMessage(), e);
@@ -89,5 +95,36 @@ public class AuthGrpcClientAdapter implements AuthServiceGateway {
     @Override
     public Optional<Long> getUserIdByEmail(String email) {
         return getUserByEmail(email).map(AdminUser::getId);
+    }
+
+    @Override
+    public java.util.List<AdminUser> getAllUsers(String search) {
+        try {
+            log.debug("Gọi gRPC getAllUsers sang auth-service với search='{}'", search);
+            com.nqt.common.grpc.user.GetAllUsersRequest request = com.nqt.common.grpc.user.GetAllUsersRequest.newBuilder()
+                    .setSearch(search != null ? search.trim() : "")
+                    .build();
+
+            com.nqt.common.grpc.user.GetAllUsersResponse response = userServiceStub
+                    .withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getAllUsers(request);
+
+            return response.getUsersList().stream()
+                    .map(u -> AdminUser.builder()
+                            .id(u.getId())
+                            .email(u.getEmail())
+                            .name(u.getName()) // name mặc định từ auth-service, sẽ được ghi đè bằng name từ onboarding-service nếu có
+                            .role(u.getRole())
+                            .avatarUrl(u.getAvatarUrl())
+                            .bio(u.getBio())
+                            .isVerified(u.getIsVerified())
+                            .hasCompletedOnboarding(u.getHasCompletedOnboarding())
+                            .createdAt(u.getCreatedAt())
+                            .build())
+                    .toList();
+        } catch (Exception e) {
+            log.error("Lỗi khi gọi gRPC getAllUsers sang auth-service: {}", e.getMessage(), e);
+            return java.util.Collections.emptyList();
+        }
     }
 }

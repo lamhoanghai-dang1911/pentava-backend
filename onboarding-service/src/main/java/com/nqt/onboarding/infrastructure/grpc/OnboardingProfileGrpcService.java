@@ -103,6 +103,31 @@ public class OnboardingProfileGrpcService extends OnboardingProfileServiceGrpc.O
         }
     }
 
+    @Override
+    public void getProfilesByUserIds(GetProfilesByUserIdsRequest request,
+                                     StreamObserver<GetProfilesResponse> responseObserver) {
+        try {
+            logger.debug("Nhận gRPC GetProfilesByUserIds cho {} userIds", request.getUserIdsCount());
+            java.util.List<UserProfile> profiles = profileRepository.findByUserIds(request.getUserIdsList());
+
+            GetProfilesResponse.Builder builder = GetProfilesResponse.newBuilder();
+            for (UserProfile p : profiles) {
+                if (p.getUserId() != null) {
+                    builder.addProfiles(UserProfileInfo.newBuilder()
+                            .setUserId(p.getUserId())
+                            .setEmail(p.getUserEmail() != null ? p.getUserEmail() : "")
+                            .setName(p.getName() != null ? p.getName() : "")
+                            .build());
+                }
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            logger.error("Lỗi khi xử lý GetProfilesByUserIds: {}", e.getMessage(), e);
+            responseObserver.onError(e);
+        }
+    }
+
     private OnboardingProfileResponse toResponse(Optional<UserProfile> profileOpt) {
         return profileOpt.map(p -> OnboardingProfileResponse.newBuilder()
                 .setFound(true)

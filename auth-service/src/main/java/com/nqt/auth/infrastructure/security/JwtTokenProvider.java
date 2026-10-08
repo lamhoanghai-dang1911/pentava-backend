@@ -18,17 +18,24 @@ public class JwtTokenProvider {
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
-    // Sinh JWT Token dựa vào email
-    public String generateToken(String email) {
+    // Sinh JWT Token dựa vào email và role
+    public String generateToken(String email, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpiration);
+        String safeRole = (role != null && !role.isBlank()) ? role : "ROLE_USER";
 
         return Jwts.builder()
                 .subject(email)
+                .claim("role", safeRole)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key())
                 .compact();
+    }
+
+    // Overload tương thích ngược
+    public String generateToken(String email) {
+        return generateToken(email, "ROLE_USER");
     }
 
     private SecretKey key() {

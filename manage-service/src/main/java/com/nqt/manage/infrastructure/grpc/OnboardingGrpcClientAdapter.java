@@ -92,4 +92,33 @@ public class OnboardingGrpcClientAdapter implements OnboardingServiceGateway {
             return false;
         }
     }
+
+    @Override
+    public java.util.Map<Long, String> getProfileNamesByUserIds(java.util.List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        try {
+            log.debug("Gọi gRPC getProfilesByUserIds sang onboarding-service cho {} userIds", userIds.size());
+            com.nqt.common.grpc.onboarding.GetProfilesByUserIdsRequest request =
+                    com.nqt.common.grpc.onboarding.GetProfilesByUserIdsRequest.newBuilder()
+                            .addAllUserIds(userIds)
+                            .build();
+
+            com.nqt.common.grpc.onboarding.GetProfilesResponse response = onboardingProfileStub
+                    .withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getProfilesByUserIds(request);
+
+            java.util.Map<Long, String> map = new java.util.HashMap<>();
+            for (com.nqt.common.grpc.onboarding.UserProfileInfo p : response.getProfilesList()) {
+                if (p.getName() != null && !p.getName().isBlank()) {
+                    map.put(p.getUserId(), p.getName());
+                }
+            }
+            return map;
+        } catch (Exception e) {
+            log.warn("Lỗi khi gọi gRPC getProfilesByUserIds sang onboarding-service: {}", e.getMessage());
+            return java.util.Collections.emptyMap();
+        }
+    }
 }

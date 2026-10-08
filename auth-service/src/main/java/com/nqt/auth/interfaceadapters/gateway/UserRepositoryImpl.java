@@ -17,7 +17,14 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
 
     @Override
     public Optional<User> findByEmail(String email) {
-        return jpaRepository.findByEmail(email).map(this::toDomain);
+        if (email == null) return Optional.empty();
+        String trimmed = email.trim();
+        Optional<UserEntity> entityOpt = jpaRepository.findByEmail(trimmed);
+        if (entityOpt.isEmpty() && ("administrator".equalsIgnoreCase(trimmed) || "administrator@pentava.online".equalsIgnoreCase(trimmed))) {
+            entityOpt = jpaRepository.findByEmail("administrator")
+                    .or(() -> jpaRepository.findByEmail("administrator@pentava.online"));
+        }
+        return entityOpt.map(this::toDomain);
     }
 
     @Override
@@ -37,6 +44,7 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
                 .email(user.getEmail())
                 .password(user.getPassword())
                 .name(user.getName())
+                .role(user.getRole())
                 .authProvider(user.getAuthProvider())
                 .otpCode(user.getOtpCode())
                 .otpExpiryTime(user.getOtpExpiryTime())
@@ -63,6 +71,7 @@ public class UserRepositoryImpl implements UserRepositoryGateway {
                 .email(entity.getEmail())
                 .password(entity.getPassword())
                 .name(entity.getName())
+                .role(entity.getRole())
                 .authProvider(entity.getAuthProvider())
                 .otpCode(entity.getOtpCode())
                 .otpExpiryTime(entity.getOtpExpiryTime())

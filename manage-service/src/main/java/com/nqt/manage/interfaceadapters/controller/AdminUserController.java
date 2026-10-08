@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "Manage - Users (Admin)", description = "Quản lý và tra cứu người dùng dành cho Quản trị viên (Tên người dùng lấy từ Onboarding-service)")
 @RestController
 @RequestMapping("/api/manage/users")
@@ -17,6 +19,13 @@ import org.springframework.web.bind.annotation.*;
 public class AdminUserController {
 
     private final AdminUserInputPort adminUserInputPort;
+
+    @Operation(summary = "Lấy toàn bộ danh sách người dùng (Dành cho Admin Web, có thể tìm kiếm theo từ khóa)")
+    @GetMapping({"", "/all"})
+    public ResponseEntity<List<AdminUserResponseDTO>> getAllUsers(
+            @RequestParam(value = "search", required = false) String search) {
+        return ResponseEntity.ok(adminUserInputPort.getAllUsers(search));
+    }
 
     @Operation(summary = "Xem thông tin người dùng theo User ID (Lấy name từ onboarding-service, auth info từ auth-service)")
     @GetMapping("/{userId}")

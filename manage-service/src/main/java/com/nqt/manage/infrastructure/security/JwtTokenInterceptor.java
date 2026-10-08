@@ -37,18 +37,7 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         // Các endpoint công khai không yêu cầu token:
         boolean isPublic = uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/swagger-ui") ||
-                uri.equals("/api/manage/landing/overview") ||
-                (uri.equals("/api/manage/contacts") && "POST".equalsIgnoreCase(method)) ||
-                (uri.equals("/api/manage/newsletters") && "POST".equalsIgnoreCase(method)) ||
-                (uri.equals("/api/manage/configs/public") && "GET".equalsIgnoreCase(method)) ||
-                ("GET".equalsIgnoreCase(method) && (
-                        uri.startsWith("/api/manage/banners") ||
-                        uri.startsWith("/api/manage/features") ||
-                        uri.startsWith("/api/manage/testimonials") ||
-                        uri.startsWith("/api/manage/faqs") ||
-                        uri.startsWith("/api/manage/pricing") ||
-                        uri.startsWith("/api/manage/metrics")
-                ));
+                (uri.equals("/api/manage/contacts") && "POST".equalsIgnoreCase(method));
 
         String authHeader = request.getHeader("Authorization");
 
@@ -61,14 +50,31 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
                         .getPayload();
 
                 String email = claims.getSubject();
+                String role = claims.get("role", String.class);
+
                 if (email != null && !email.isBlank()) {
                     request.setAttribute("currentEmail", email);
+                    request.setAttribute("currentRole", role);
+
+                    // Endpoint quản trị yêu cầu quyền ADMIN
+                    if (!isPublic) {
+                        if (!"ROLE_ADMIN".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {
+                            log.warn("Truy cập bị từ chối: Tài khoản '{}' có role='{}' không có quyền ADMIN trên URI {}", email, role, uri);
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\"Quyền truy cập chỉ dành riêng cho Quản trị viên (ADMIN)\"}");
+                            return false;
+                        }
+                    }
+
                     return true;
                 }
             } catch (Exception e) {
                 log.warn("JWT không hợp lệ: {}", e.getMessage());
                 if (!isPublic) {
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Token không hợp lệ hoặc đã hết hạn\"}");
                     return false;
                 }
             }
@@ -78,7 +84,9 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid Authorization header");
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Vui lòng đăng nhập với tài khoản Quản trị viên để thực hiện thao tác này\"}");
         return false;
     }
 }

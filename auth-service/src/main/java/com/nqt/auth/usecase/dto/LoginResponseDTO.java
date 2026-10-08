@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 public class LoginResponseDTO {
     private String accessToken;
     private String email;
+    private String role;
     private String message;
     private boolean hasCompletedOnboarding;
     private String resetToken;

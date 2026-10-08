@@ -23,6 +23,33 @@ public class AdminUserInteractor implements AdminUserInputPort {
     private final OnboardingServiceGateway onboardingServiceGateway;
 
     @Override
+    public java.util.List<AdminUserResponseDTO> getAllUsers(String search) {
+        log.info("Lấy toàn bộ danh sách người dùng với search='{}'", search);
+        java.util.List<AdminUser> users = authServiceGateway.getAllUsers(search);
+        if (users == null || users.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        // Lấy danh sách ID để tra cứu tên từ onboarding-service trong 1 lần gọi
+        java.util.List<Long> userIds = users.stream()
+                .map(AdminUser::getId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        java.util.Map<Long, String> profileNames = onboardingServiceGateway.getProfileNamesByUserIds(userIds);
+
+        return users.stream().map(user -> {
+            String onboardingName = profileNames.get(user.getId());
+            if (onboardingName != null && !onboardingName.isBlank()) {
+                user.setName(onboardingName);
+            } else if (user.getName() == null) {
+                user.setName("");
+            }
+            return toDTO(user);
+        }).toList();
+    }
+
+    @Override
     public AdminUserResponseDTO getUserById(Long userId) {
         AdminUser user = authServiceGateway.getUserById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
@@ -79,10 +106,12 @@ public class AdminUserInteractor implements AdminUserInputPort {
                 .id(user.getId())
                 .email(user.getEmail())
                 .name(user.getName()) // name đã được đồng bộ từ onboarding-service
+                .role(user.getRole())
                 .avatarUrl(user.getAvatarUrl())
                 .bio(user.getBio())
                 .isVerified(user.getIsVerified())
                 .hasCompletedOnboarding(user.getHasCompletedOnboarding())
+                .createdAt(user.getCreatedAt())
                 .build();
     }
 }

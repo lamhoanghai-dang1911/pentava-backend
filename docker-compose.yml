@@ -233,6 +233,7 @@ services:
       GRPC_AUTH_SERVICE_ADDRESS: static://auth-service:9090
       GRPC_ONBOARDING_SERVICE_ADDRESS: static://onboarding-service:9092
       JWT_SECRET: ${JWT_SECRET}
+      OPENAPI_SERVER_URL: ${OPENAPI_SERVER_URL:-http://localhost:8080}
     depends_on:
       postgres:
         condition: service_healthy

@@ -16,8 +16,10 @@ public class AdminUser {
      * Tên người dùng LẤY TỪ ONBOARDING-SERVICE, không dùng từ auth-service
      */
     private String name;
+    private String role;
     private String avatarUrl;
     private String bio;
     private Boolean isVerified;
     private Boolean hasCompletedOnboarding;
+    private String createdAt;
 }

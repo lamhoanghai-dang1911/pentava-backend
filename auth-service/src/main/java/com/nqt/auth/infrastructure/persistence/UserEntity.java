@@ -38,6 +38,14 @@ public class UserEntity {
     private boolean isVerified = false;
 
     @Builder.Default
+    @Column(name = "role")
+    private String role = "ROLE_USER";
+
+    public String getRole() {
+        return (role != null && !role.isBlank()) ? role : "ROLE_USER";
+    }
+
+    @Builder.Default
     @Column(name = "has_completed_onboarding", nullable = false)
     private boolean hasCompletedOnboarding = false;
 

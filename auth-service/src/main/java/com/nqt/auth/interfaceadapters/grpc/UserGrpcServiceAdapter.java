@@ -118,6 +118,40 @@ public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase 
         }
     }
 
+    @Override
+    public void getAllUsers(GetAllUsersRequest request, StreamObserver<GetAllUsersResponse> responseObserver) {
+        try {
+            String search = request.getSearch() != null ? request.getSearch().trim() : "";
+            java.util.List<UserEntity> users;
+            if (search.isEmpty()) {
+                users = userJpaRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+            } else {
+                users = userJpaRepository.findAllBySearch(search);
+            }
+
+            GetAllUsersResponse.Builder builder = GetAllUsersResponse.newBuilder();
+            for (UserEntity u : users) {
+                builder.addUsers(AdminUserItemResponse.newBuilder()
+                        .setId(u.getId())
+                        .setEmail(u.getEmail() != null ? u.getEmail() : "")
+                        .setName(u.getName() != null ? u.getName() : "")
+                        .setRole(u.getRole() != null ? u.getRole() : "ROLE_USER")
+                        .setAvatarUrl(u.getAvatarUrl() != null ? u.getAvatarUrl() : "")
+                        .setBio(u.getBio() != null ? u.getBio() : "")
+                        .setIsVerified(u.isVerified())
+                        .setHasCompletedOnboarding(u.isHasCompletedOnboarding())
+                        .setCreatedAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : "")
+                        .build());
+            }
+            builder.setTotalCount(users.size());
+
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(e);
+        }
+    }
+
     private UserResponse toResponse(Optional<UserQueryResponseDTO> userOpt) {
         return userOpt
                 .map(u -> UserResponse.newBuilder()

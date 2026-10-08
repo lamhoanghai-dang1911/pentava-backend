@@ -26,6 +26,14 @@ public class UserProfileRepositoryImpl implements UserProfileRepositoryGateway {
     }
 
     @Override
+    public java.util.List<UserProfile> findByUserIds(java.util.Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return jpaRepository.findByUserIdIn(userIds).stream().map(this::toDomain).toList();
+    }
+
+    @Override
     public UserProfile save(UserProfile profile) {
         UserProfileEntity entity = toEntity(profile);
         UserProfileEntity saved = jpaRepository.save(entity);

@@ -22,6 +22,9 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
+openapi:
+  server-url: ${OPENAPI_SERVER_URL:http://localhost:8080}
+
 grpc:
   client:
     auth-service:

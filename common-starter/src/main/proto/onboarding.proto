@@ -15,6 +15,9 @@ service OnboardingProfileService {
 
   // Cập nhật tên người dùng ở onboarding-service
   rpc UpdateProfileName(UpdateProfileNameRequest) returns (UpdateProfileNameResponse);
+
+  // Lấy danh sách profile người dùng theo danh sách user_id
+  rpc GetProfilesByUserIds(GetProfilesByUserIdsRequest) returns (GetProfilesResponse);
 }
 
 message GetProfileByEmailRequest {
@@ -41,4 +44,18 @@ message UpdateProfileNameRequest {
 message UpdateProfileNameResponse {
   bool success = 1;
   string message = 2;
+}
+
+message GetProfilesByUserIdsRequest {
+  repeated int64 user_ids = 1;
+}
+
+message UserProfileInfo {
+  int64 user_id = 1;
+  string email = 2;
+  string name = 3;
+}
+
+message GetProfilesResponse {
+  repeated UserProfileInfo profiles = 1;
 }

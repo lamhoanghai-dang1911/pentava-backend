@@ -64,6 +64,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
         User newUser = User.builder()
                 .email(requestDTO.getEmail())
                 .password(passwordEncoder.encode(requestDTO.getPassword()))
+                .role("ROLE_USER")
                 .authProvider("LOCAL")
                 .otpCode(otpCode)
                 .otpExpiryTime(expiryTime)
@@ -76,6 +77,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
 
         LoginResponseDTO responseDTO = LoginResponseDTO.builder()
                 .email(newUser.getEmail())
+                .role(newUser.getRole())
                 .message("Đăng ký thành công. Vui lòng kiểm tra email để nhận mã OTP xác thực.")
                 .build();
 
@@ -113,11 +115,12 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
         user.setOtpExpiryTime(null);
         userRepository.save(user);
 
-        String token = jwtTokenProvider.generateToken(user.getEmail());
+        String token = jwtTokenProvider.generateToken(user.getEmail(), user.getRole());
 
         LoginResponseDTO responseDTO = LoginResponseDTO.builder()
                 .accessToken(token)
                 .email(user.getEmail())
+                .role(user.getRole())
                 .message("Đăng nhập thành công")
                 .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .build();
@@ -140,11 +143,12 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
             return;
         }
 
-        String token = jwtTokenProvider.generateToken(user.getEmail());
+        String token = jwtTokenProvider.generateToken(user.getEmail(), user.getRole());
 
         LoginResponseDTO responseDTO = LoginResponseDTO.builder()
                 .accessToken(token)
                 .email(user.getEmail())
+                .role(user.getRole())
                 .message("Đăng nhập thành công")
                 .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .build();
@@ -178,6 +182,7 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
                     .email(googleUserInfo.email())
                     .password("")
                     .name(googleUserInfo.name())
+                    .role("ROLE_USER")
                     .authProvider("GOOGLE")
                     .googleId(googleUserInfo.googleId())
                     .isVerified(true)
@@ -186,11 +191,12 @@ public class AuthInteractor implements RegisterInputPort, LoginInputPort, Google
             user = userRepository.save(newUser);
         }
 
-        String token = jwtTokenProvider.generateToken(user.getEmail());
+        String token = jwtTokenProvider.generateToken(user.getEmail(), user.getRole());
 
         LoginResponseDTO responseDTO = LoginResponseDTO.builder()
                 .accessToken(token)
                 .email(user.getEmail())
+                .role(user.getRole())
                 .message("Đăng nhập thành công")
                 .hasCompletedOnboarding(user.isHasCompletedOnboarding())
                 .build();

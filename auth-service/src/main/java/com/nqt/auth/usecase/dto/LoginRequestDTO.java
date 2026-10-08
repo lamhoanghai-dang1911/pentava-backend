@@ -13,8 +13,7 @@ import lombok.NoArgsConstructor;
 @Data
 @Builder
 public class LoginRequestDTO {
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Địa chỉ email không đúng định dạng")
+    @NotBlank(message = "Tên đăng nhập hoặc email không được để trống")
     private String email;
 
     @NotBlank(message = "Mật khẩu không được để trống")

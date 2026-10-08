@@ -30,6 +30,16 @@ public class CurrentUserProvider {
         return Optional.empty();
     }
 
+    public String getCurrentUserRole() {
+        Object role = request.getAttribute("currentRole");
+        return role instanceof String s ? s : "";
+    }
+
+    public boolean isAdmin() {
+        String role = getCurrentUserRole();
+        return "ROLE_ADMIN".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role);
+    }
+
     public Long resolveCurrentUserId() {
         String email = getCurrentUserEmail();
         return authServiceGateway.getUserIdByEmail(email)
