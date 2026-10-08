@@ -47,13 +47,6 @@
             <version>${grpc-spring-boot.version}</version>
         </dependency>
 
-        <!-- gRPC server: cho các service khác gọi nếu cần -->
-        <dependency>
-            <groupId>net.devh</groupId>
-            <artifactId>grpc-server-spring-boot-starter</artifactId>
-            <version>${grpc-spring-boot.version}</version>
-        </dependency>
-
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

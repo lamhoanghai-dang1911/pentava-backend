@@ -122,11 +122,13 @@ public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase 
     public void getAllUsers(GetAllUsersRequest request, StreamObserver<GetAllUsersResponse> responseObserver) {
         try {
             String search = request.getSearch() != null ? request.getSearch().trim() : "";
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                    0, 100, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
             java.util.List<UserEntity> users;
             if (search.isEmpty()) {
-                users = userJpaRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+                users = userJpaRepository.findAll(pageable).getContent();
             } else {
-                users = userJpaRepository.findAllBySearch(search);
+                users = userJpaRepository.findAllBySearch(search, pageable);
             }
 
             GetAllUsersResponse.Builder builder = GetAllUsersResponse.newBuilder();

@@ -3,10 +3,12 @@ package com.nqt.social.infrastructure.realtime;
 import com.nqt.social.domain.SocialEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class SseNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(SseNotificationService.class);
-    private static final long SSE_TIMEOUT = 30 * 60 * 1000L; // 30 phút
+    private static final long SSE_TIMEOUT = 5 * 60 * 1000L; // 5 phút (EventSource tự reconnect)
 
     // userId -> danh sách active emitters
     private final Map<Long, List<SseEmitter>> userEmitters = new ConcurrentHashMap<>();
@@ -55,6 +57,28 @@ public class SseNotificationService {
             } catch (Exception e) {
                 log.warn("Lỗi khi gửi SSE event tới userId {}: {}", targetUserId, e.getMessage());
                 removeEmitter(targetUserId, emitter);
+            }
+        }
+    }
+
+    @Scheduled(fixedRate = 30000)
+    public void sendHeartbeat() {
+        if (userEmitters.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<Long, List<SseEmitter>> entry : userEmitters.entrySet()) {
+            Long userId = entry.getKey();
+            List<SseEmitter> emitters = entry.getValue();
+            List<SseEmitter> deadEmitters = new ArrayList<>();
+            for (SseEmitter emitter : emitters) {
+                try {
+                    emitter.send(SseEmitter.event().comment("ping"));
+                } catch (Exception e) {
+                    deadEmitters.add(emitter);
+                }
+            }
+            for (SseEmitter dead : deadEmitters) {
+                removeEmitter(userId, dead);
             }
         }
     }

@@ -141,7 +141,6 @@ public class GroqDiagnosticService {
             }
 
             String responseBody = response.body().string();
-            logger.debug("Groq API response: {}", responseBody);
 
             JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
             return jsonResponse.getAsJsonArray("choices")
@@ -153,10 +152,14 @@ public class GroqDiagnosticService {
 
     private DiagnosticReportDTO parseDiagnosticResponse(String groqResponse) {
         try {
-            String cleanedResponse = groqResponse
-                    .replaceAll("```json", "")
-                    .replaceAll("```", "")
-                    .trim();
+            String cleanedResponse = groqResponse;
+            int start = cleanedResponse.indexOf('{');
+            int end = cleanedResponse.lastIndexOf('}');
+            if (start != -1 && end != -1 && end >= start) {
+                cleanedResponse = cleanedResponse.substring(start, end + 1);
+            } else {
+                cleanedResponse = cleanedResponse.replace("```json", "").replace("```", "").trim();
+            }
 
             JsonObject json = JsonParser.parseString(cleanedResponse).getAsJsonObject();
 

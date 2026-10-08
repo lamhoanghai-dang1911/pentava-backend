@@ -1,8 +1,12 @@
 server:
   port: 8084
   address: ${SERVER_ADDRESS:127.0.0.1}
-#  address: 127.0.0.1
-#  address: 0.0.0.0 test mobile
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 2
+    max-connections: 500
+    accept-count: 50
 
 spring:
   application:
@@ -12,13 +16,19 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 1
+      idle-timeout: 30000
+      max-lifetime: 1800000
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
   servlet:
     multipart:
@@ -37,7 +47,10 @@ supabase:
 
 springdoc:
   api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
     group: checkin-service
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
 
 grpc:
   server:
@@ -50,4 +63,4 @@ grpc:
 logging:
   level:
     root: ${LOGGING_LEVEL_ROOT:INFO}
-    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:INFO}

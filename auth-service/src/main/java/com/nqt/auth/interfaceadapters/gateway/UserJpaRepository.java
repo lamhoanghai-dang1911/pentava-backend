@@ -28,5 +28,8 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
                OR (u.name IS NOT NULL AND LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%'))))
         ORDER BY u.id DESC
     """)
-    java.util.List<UserEntity> findAllBySearch(@org.springframework.data.repository.query.Param("search") String search);
+    java.util.List<UserEntity> findAllBySearch(
+            @org.springframework.data.repository.query.Param("search") String search,
+            org.springframework.data.domain.Pageable pageable
+    );
 }

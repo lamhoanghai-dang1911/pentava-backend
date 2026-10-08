@@ -1,6 +1,12 @@
 server:
   port: 8087
   address: ${SERVER_ADDRESS:0.0.0.0}
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 2
+    max-connections: 500
+    accept-count: 50
 
 spring:
   application:
@@ -10,7 +16,13 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 1
+      idle-timeout: 30000
+      max-lifetime: 1800000
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: false
@@ -31,11 +43,12 @@ sepay:
 
 springdoc:
   api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
     path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
 
 grpc:
-  server:
-    port: ${GRPC_SERVER_PORT:9094}
   client:
     auth-service:
       address: ${GRPC_AUTH_SERVICE_ADDRESS:static://localhost:9090}
@@ -47,4 +60,4 @@ grpc:
 logging:
   level:
     root: ${LOGGING_LEVEL_ROOT:INFO}
-    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:INFO}

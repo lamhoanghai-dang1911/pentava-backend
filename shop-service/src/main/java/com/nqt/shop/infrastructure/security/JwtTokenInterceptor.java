@@ -32,8 +32,6 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         }
 
         String uri = request.getRequestURI();
-        String internalCaller = request.getHeader("X-Internal-Caller");
-        boolean isInternalManageService = "manage-service".equalsIgnoreCase(internalCaller);
 
         boolean isPublic = uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/swagger-ui") ||
@@ -46,12 +44,7 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
                 )) ||
                 uri.startsWith("/api/shop/topup/mock-confirm") ||
                 uri.startsWith("/api/shop/subscription/mock-confirm") ||
-                uri.startsWith("/api/shop/subscription/entitlement") ||
-                (isInternalManageService && uri.startsWith("/api/shop/admin/"));
-
-        if (isInternalManageService && uri.startsWith("/api/shop/admin/")) {
-            return true;
-        }
+                uri.startsWith("/api/shop/subscription/entitlement");
 
         String authHeader = request.getHeader("Authorization");
 

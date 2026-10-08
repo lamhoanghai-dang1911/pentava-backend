@@ -163,7 +163,7 @@ springdoc:
 logging:
   level:
     root: ${LOGGING_LEVEL_ROOT:INFO}
-    com.nqt: ${LOGGING_LEVEL_COM_NQT:DEBUG}
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web.cors: DEBUG
-    reactor.netty.http.server: DEBUG
+    com.nqt: ${LOGGING_LEVEL_COM_NQT:INFO}
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web.cors: INFO
+    reactor.netty.http.server: INFO
