@@ -52,7 +52,8 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                 SubscriptionFeatureEntity.builder()
                         .featureCode("STORAGE_EXPANSION")
                         .name("Tăng dung lượng lưu trữ")
-                        .description("Tăng khả năng lưu trữ dữ liệu của riêng user để lưu trữ hình ảnh và video Penta-Cinema")
+                        .description(
+                                "Tăng khả năng lưu trữ dữ liệu của riêng user để lưu trữ hình ảnh và video Penta-Cinema")
                         .defaultValue("5GB")
                         .unit("GB")
                         .displayOrder(1)
@@ -85,7 +86,8 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                 SubscriptionFeatureEntity.builder()
                         .featureCode("CUSTOM_ROADMAP")
                         .name("Tự thiết kế & Public lộ trình")
-                        .description("Cho người dùng tự thiết kế lộ trình phát triển bản thân và chia sẻ công khai lên cộng đồng")
+                        .description(
+                                "Cho người dùng tự thiết kế lộ trình phát triển bản thân và chia sẻ công khai lên cộng đồng")
                         .defaultValue("true")
                         .unit("boolean")
                         .displayOrder(4)
@@ -113,8 +115,7 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                         .displayOrder(6)
                         .createdAt(now)
                         .updatedAt(now)
-                        .build()
-        );
+                        .build());
 
         featureRepository.saveAll(features);
         log.info("Đã tạo thành công 6 tính năng mặc định trong subscription_features.");
@@ -122,7 +123,18 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
 
     private void initPlans() {
         if (planRepository.count() > 0) {
-            log.info("Danh mục gói cước (subscription_plans) đã có dữ liệu, bỏ qua bước khởi tạo gói.");
+            log.info("Danh mục gói cước (subscription_plans) đã có dữ liệu, cập nhật lại description thành null.");
+            List<SubscriptionPlanEntity> existingPlans = planRepository.findAll();
+            boolean updated = false;
+            for (SubscriptionPlanEntity p : existingPlans) {
+                if (p.getDescription() != null) {
+                    p.setDescription(null);
+                    updated = true;
+                }
+            }
+            if (updated) {
+                planRepository.saveAll(existingPlans);
+            }
             return;
         }
 
@@ -133,7 +145,7 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                         .name("Gói Basic")
                         .priceVnd(39000L)
                         .durationDays(30)
-                        .description("Gói trải nghiệm các tính năng nâng cao cơ bản cho người mới bắt đầu")
+                        .description(null)
                         .badge(null)
                         .isActive(true)
                         .displayOrder(1)
@@ -146,7 +158,7 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                         .name("Gói Gold")
                         .priceVnd(59000L)
                         .durationDays(30)
-                        .description("Gói tối ưu trải nghiệm bảo vệ chuỗi thói quen và sáng tạo lộ trình")
+                        .description(null)
                         .badge("Phổ biến nhất")
                         .isActive(true)
                         .displayOrder(2)
@@ -159,14 +171,13 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                         .name("Gói Premium")
                         .priceVnd(149000L)
                         .durationDays(30)
-                        .description("Gói cao cấp mở khóa toàn diện đặc quyền và full trang phục cửa hàng")
+                        .description(null)
                         .badge("VIP")
                         .isActive(true)
                         .displayOrder(3)
                         .createdAt(now)
                         .updatedAt(now)
-                        .build()
-        );
+                        .build());
 
         planRepository.saveAll(plans);
         log.info("Đã tạo thành công 3 gói cước mặc định: BASIC (39k), GOLD (59k), PREMIUM (149k).");
@@ -189,7 +200,8 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                 String paramVal = feature.getDefaultValue();
                 String displayLabel = feature.getName();
 
-                // Cấu hình ban đầu dạng Modular (Admin có thể tùy ý sửa đổi qua giao diện bất cứ lúc nào)
+                // Cấu hình ban đầu dạng Modular (Admin có thể tùy ý sửa đổi qua giao diện bất
+                // cứ lúc nào)
                 switch (plan.getCode().toUpperCase()) {
                     case "BASIC":
                         if ("STORAGE_EXPANSION".equalsIgnoreCase(feature.getFeatureCode())) {

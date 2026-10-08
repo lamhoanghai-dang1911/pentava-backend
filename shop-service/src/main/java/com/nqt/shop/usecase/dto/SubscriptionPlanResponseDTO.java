@@ -1,5 +1,6 @@
 package com.nqt.shop.usecase.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,19 @@ public class SubscriptionPlanResponseDTO {
     private int durationDays;
     private String description;
     private String badge;
+
+    @JsonProperty("isActive")
     private boolean isActive;
+
     private int displayOrder;
     private List<PlanFeatureItemDTO> features;
+
+    @JsonProperty("active")
+    public boolean getActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        this.isActive = active;
+    }
 }
