@@ -36,6 +36,9 @@ supabase:
   service-key: ${SUPABASE_SERVICE_KEY}
   cinema-bucket: ${SUPABASE_CINEMA_BUCKET:cinema-clips}
 
+shop-service:
+  url: ${SHOP_SERVICE_URI:http://localhost:8087}
+
 cinema:
   min-photos: ${CINEMA_MIN_PHOTOS:3}
   render:

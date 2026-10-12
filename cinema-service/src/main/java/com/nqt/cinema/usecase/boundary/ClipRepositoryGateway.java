@@ -14,5 +14,8 @@ public interface ClipRepositoryGateway {
     long countByUserGoalWeekAndStatus(Long userId, Long goalId, int weekNumber, ClipStatus status);
     boolean hasActiveJob(Long userId);
     void updateStatus(Long clipId, ClipStatus status, String storagePath, String errorMessage);
+    void updateStatus(Long clipId, ClipStatus status, String storagePath, Long fileSizeBytes, String errorMessage);
+    long sumFileSizeBytesByUserId(Long userId);
+    long countByUserIdAndStatus(Long userId, ClipStatus status);
     void delete(Long clipId);
 }

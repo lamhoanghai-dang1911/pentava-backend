@@ -15,4 +15,7 @@ public interface CinemaInputPort {
 
     /** Ảnh của một tuần thuộc mục tiêu, để user chọn khi tạo clip. */
     WeekPhotosResponseDTO getGoalWeekPhotos(Long goalId, int weekNumber);
+
+    /** Thông tin dung lượng lưu trữ (video + hình ảnh) và trạng thái gói cước của user */
+    com.nqt.cinema.usecase.dto.CinemaStorageQuotaDTO getStorageQuota();
 }

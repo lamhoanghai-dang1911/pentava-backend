@@ -1,6 +1,7 @@
 package com.nqt.onboarding.usecase.interactor;
 
 import com.nqt.onboarding.domain.*;
+import com.nqt.onboarding.infrastructure.client.ShopSubscriptionClient;
 import com.nqt.onboarding.infrastructure.groq.GroqDiagnosticService;
 import com.nqt.onboarding.infrastructure.persistence.*;
 import com.nqt.onboarding.infrastructure.security.CurrentUserProvider;
@@ -15,12 +16,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -51,6 +50,9 @@ public class OnboardingInteractor implements OnboardingInputPort {
     private final TaskProgressRepositoryGateway taskProgressRepository;
     private final DailyMoodSelectionRepositoryGateway moodSelectionRepository;
     private final UserStreakRepositoryGateway streakRepository;
+    private final ShopSubscriptionClient shopSubscriptionClient;
+    private final UserStreakFreezeJpaRepository userStreakFreezeRepository;
+    private final GoalAssessmentRepositoryGateway goalAssessmentRepository;
 
     // ==========================================
     // ONBOARDING LẦN ĐẦU
@@ -322,6 +324,9 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .status(goal.getStatus().name())
                         .createdAt(goal.getCreatedAt())
                         .expiresAt(goal.getExpiresAt())
+                        .isCustom(Boolean.TRUE.equals(goal.getIsCustom()))
+                        .isPublic(Boolean.TRUE.equals(goal.getIsPublic()))
+                        .description(goal.getDescription())
                         .build())
                 .build());
     }
@@ -378,8 +383,23 @@ public class OnboardingInteractor implements OnboardingInputPort {
             return;
         }
 
-        // Chưa confirm đủ 5 -> trả full pool theo mood để user chọn
-        List<TaskEntity> pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), mood);
+        // Chưa confirm đủ 5 -> trả pool để user chọn (hỗ trợ cả lộ trình tự thiết kế)
+        List<TaskEntity> pool;
+        if (Boolean.TRUE.equals(goal.getIsCustom())) {
+            int currentWeek = 1;
+            if (goal.getStartDate() != null) {
+                long days = java.time.temporal.ChronoUnit.DAYS.between(goal.getStartDate(), today);
+                currentWeek = (int) (days / 7) + 1;
+                if (currentWeek < 1) currentWeek = 1;
+                if (currentWeek > 4) currentWeek = 4;
+            }
+            pool = taskRepository.findTasksForGoalAndWeek(goal.getId(), currentWeek);
+            if (pool.isEmpty()) {
+                pool = taskRepository.findAllByGoalId(goal.getId());
+            }
+        } else {
+            pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), mood);
+        }
         List<TaskResponseDTO> taskDTOs = pool.stream().map(this::toTaskResponseDTO).toList();
 
         outputPort.present(OnboardingResponseDTO.builder()
@@ -684,8 +704,29 @@ public class OnboardingInteractor implements OnboardingInputPort {
         }
 
         LocalDate yesterday = today.minusDays(1);
+        String currentYearMonth = YearMonth.from(today).toString();
+
         if (yesterday.equals(streak.getLastCompletedDate())) {
             streak.setCurrentStreak(streak.getCurrentStreak() + 1); // nối tiếp chuỗi
+        } else if (today.minusDays(2).equals(streak.getLastCompletedDate()) && streak.getCurrentStreak() > 0) {
+            // User bỏ lỡ hôm qua nhưng hoàn thành hôm nay: Kiểm tra bảo vệ chuỗi
+            boolean hasProtection = shopSubscriptionClient.hasStreakProtection(userId);
+            long freezesUsed = userStreakFreezeRepository.countByUserIdAndYearMonth(userId, currentYearMonth);
+            if (hasProtection && freezesUsed < 2) {
+                if (!userStreakFreezeRepository.existsByUserIdAndFreezeDate(userId, yesterday)) {
+                    UserStreakFreezeEntity freeze = UserStreakFreezeEntity.builder()
+                            .userId(userId)
+                            .freezeDate(yesterday)
+                            .yearMonth(currentYearMonth)
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    userStreakFreezeRepository.save(freeze);
+                    logger.info("Đã bảo vệ streak ngày {} cho user {}, nối tiếp chuỗi streak", yesterday, userId);
+                }
+                streak.setCurrentStreak(streak.getCurrentStreak() + 1);
+            } else {
+                streak.setCurrentStreak(1); // hết lượt bảo vệ hoặc không có VIP -> reset về 1
+            }
         } else {
             streak.setCurrentStreak(1); // đứt chuỗi hoặc lần đầu -> reset về 1
         }
@@ -732,11 +773,16 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .findByUserGoalAndDate(userId, goal.getId(), today)
                 .orElseThrow(() -> new BusinessException("Bạn chưa chọn cảm xúc cho hôm nay"));
 
-        // 4. Task mới phải thuộc pool cùng mood
-        List<TaskEntity> pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), moodSelection.getMoodType());
+        // 4. Task mới phải thuộc pool cùng mood (hoặc toàn bộ task của goal nếu là lộ trình tự thiết kế)
+        List<TaskEntity> pool;
+        if (Boolean.TRUE.equals(goal.getIsCustom())) {
+            pool = taskRepository.findAllByGoalId(goal.getId());
+        } else {
+            pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), moodSelection.getMoodType());
+        }
         boolean newTaskInPool = pool.stream().anyMatch(t -> t.getId().equals(newTaskId));
         if (!newTaskInPool) {
-            throw new BusinessException("Nhiệm vụ mới không thuộc bộ nhiệm vụ theo cảm xúc đã chọn");
+            throw new BusinessException("Nhiệm vụ mới không thuộc danh sách nhiệm vụ của mục tiêu");
         }
 
         // 5. Task mới không được trùng với các task đang active hôm nay
@@ -804,9 +850,39 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .longestStreak(0)
                         .build());
 
-        // Nếu ngày hoàn thành gần nhất không phải hôm nay và cũng không phải hôm qua -> chuỗi đã đứt, hiển thị 0
         LocalDate today = today();
         LocalDate yesterday = today.minusDays(1);
+        String currentYearMonth = YearMonth.from(today).toString();
+
+        boolean hasProtection = shopSubscriptionClient.hasStreakProtection(userId);
+        long freezesUsed = userStreakFreezeRepository.countByUserIdAndYearMonth(userId, currentYearMonth);
+        boolean streakFrozenYesterday = false;
+
+        // Tự động phát hiện user quên check-in ngày hôm qua và bảo vệ chuỗi nếu đủ điều kiện
+        if (streak.getLastCompletedDate() != null
+                && streak.getCurrentStreak() > 0
+                && streak.getLastCompletedDate().equals(today.minusDays(2))) {
+            if (hasProtection && freezesUsed < 2) {
+                if (!userStreakFreezeRepository.existsByUserIdAndFreezeDate(userId, yesterday)) {
+                    UserStreakFreezeEntity freeze = UserStreakFreezeEntity.builder()
+                            .userId(userId)
+                            .freezeDate(yesterday)
+                            .yearMonth(currentYearMonth)
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    userStreakFreezeRepository.save(freeze);
+                    freezesUsed++;
+                    streakFrozenYesterday = true;
+
+                    streak.setLastCompletedDate(yesterday);
+                    streakRepository.save(streak);
+                    logger.info("Tự động bảo vệ streak cho user {} ngày {} (lượt dùng {}/2 trong tháng {})",
+                            userId, yesterday, freezesUsed, currentYearMonth);
+                }
+            }
+        }
+
+        // Nếu ngày hoàn thành gần nhất không phải hôm nay và cũng không phải hôm qua -> chuỗi đã đứt, hiển thị 0
         int displayStreak = streak.getCurrentStreak();
         if (streak.getLastCompletedDate() != null
                 && !streak.getLastCompletedDate().equals(today)
@@ -820,6 +896,10 @@ public class OnboardingInteractor implements OnboardingInputPort {
                         .currentStreak(displayStreak)
                         .longestStreak(streak.getLongestStreak())
                         .lastCompletedDate(streak.getLastCompletedDate())
+                        .freezesUsedThisMonth((int) freezesUsed)
+                        .maxFreezesPerMonth(hasProtection ? 2 : 0)
+                        .hasStreakProtection(hasProtection)
+                        .streakFrozenYesterday(streakFrozenYesterday)
                         .build())
                 .build());
     }
@@ -866,6 +946,538 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .message("Lấy lịch sử nhiệm vụ thành công")
                 .taskHistory(history)
                 .build());
+    }
+
+    // ==========================================
+    // LỘ TRÌNH TỰ THIẾT KẾ (CUSTOM ROADMAP) & CỘNG ĐỒNG
+    // ==========================================
+    @Override
+    @Transactional
+    public void getPastTasksCatalog() {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        List<UserGoal> goals = goalRepository.findAllByUserId(userId);
+        Set<Long> completedTaskIds = new HashSet<>(taskProgressRepository.findDistinctCompletedTaskIdsByUserId(userId));
+        List<TaskEntity> allTasks = taskRepository.findByUserIdOrderByGoalIdDescWeekNumberAscIdAsc(userId);
+
+        Map<Long, List<TaskEntity>> tasksByGoal = allTasks.stream()
+                .collect(Collectors.groupingBy(TaskEntity::getGoalId));
+
+        List<PastGoalCatalogDTO> catalogList = new ArrayList<>();
+        for (UserGoal goal : goals) {
+            List<TaskEntity> goalTasks = tasksByGoal.getOrDefault(goal.getId(), List.of());
+            if (goalTasks.isEmpty()) continue;
+
+            List<PastTaskCatalogItemDTO> itemDTOs = goalTasks.stream().map(t -> PastTaskCatalogItemDTO.builder()
+                    .taskId(t.getId())
+                    .weekNumber(t.getWeekNumber())
+                    .title(t.getTitle())
+                    .content(t.getContent())
+                    .moodType(t.getMoodType() != null ? t.getMoodType().name() : null)
+                    .isCompleted(completedTaskIds.contains(t.getId()))
+                    .build()).toList();
+
+            catalogList.add(PastGoalCatalogDTO.builder()
+                    .goalId(goal.getId())
+                    .goalName(goal.getGoalName())
+                    .isCustom(Boolean.TRUE.equals(goal.getIsCustom()))
+                    .tasks(itemDTOs)
+                    .build());
+        }
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy danh mục nhiệm vụ quá khứ thành công")
+                .pastTaskCatalog(catalogList)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void createCustomGoal(CreateCustomGoalRequestDTO requestDTO) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        // 1. Kiểm tra quyền CUSTOM_ROADMAP từ shop-service
+        boolean hasCustomRoadmap = shopSubscriptionClient.hasCustomRoadmap(userId);
+        if (!hasCustomRoadmap) {
+            throw new BusinessException("Bạn cần đăng ký gói dịch vụ có tính năng Tự thiết kế lộ trình (CUSTOM_ROADMAP) để sử dụng chức năng này");
+        }
+
+        // 2. Tìm tên tác giả từ profile
+        String authorName = email;
+        UserProfile profile = profileRepository.findByEmail(email).orElse(null);
+        if (profile != null && profile.getName() != null && !profile.getName().isBlank()) {
+            authorName = profile.getName();
+        }
+
+        // 3. Nếu đang có mục tiêu IN_PROGRESS, hoàn thành mục tiêu cũ
+        goalRepository.findByUserIdAndStatus(userId, GoalStatus.IN_PROGRESS).ifPresent(oldGoal -> {
+            oldGoal.setStatus(GoalStatus.COMPLETED);
+            oldGoal.setCompletedAt(LocalDateTime.now(VN_ZONE));
+            goalRepository.save(oldGoal);
+            logger.info("Đã đánh dấu hoàn thành mục tiêu cũ {} khi tạo lộ trình tự thiết kế", oldGoal.getId());
+        });
+
+        // 4. Tạo UserGoal mới
+        LocalDate goalStart = today();
+        UserGoal customGoal = UserGoal.builder()
+                .userId(userId)
+                .userEmail(email)
+                .goalName(requestDTO.getGoalName().trim())
+                .description(requestDTO.getDescription())
+                .authorName(authorName)
+                .isCustom(true)
+                .isPublic(Boolean.TRUE.equals(requestDTO.getIsPublic()))
+                .status(GoalStatus.IN_PROGRESS)
+                .createdAt(LocalDateTime.now(VN_ZONE))
+                .startDate(goalStart)
+                .endDate(goalStart.plusDays(GOAL_DURATION_DAYS - 1))
+                .build();
+        customGoal = goalRepository.save(customGoal);
+        Long goalId = customGoal.getId();
+
+        // 5. Lưu các task tự thiết kế theo từng tuần
+        List<TaskEntity> tasksToSave = new ArrayList<>();
+        if (requestDTO.getWeeks() != null) {
+            for (CustomWeekDTO weekDTO : requestDTO.getWeeks()) {
+                int weekNumber = weekDTO.getWeekNumber() != null ? weekDTO.getWeekNumber() : 1;
+                if (weekDTO.getTasks() != null) {
+                    for (CustomTaskItemDTO item : weekDTO.getTasks()) {
+                        String title = item.getTitle() != null ? item.getTitle().trim() : "";
+                        String content = (item.getContent() != null && !item.getContent().isBlank())
+                                ? item.getContent().trim()
+                                : title;
+                        TaskEntity task = TaskEntity.builder()
+                                .userId(userId)
+                                .goalId(goalId)
+                                .goalName(requestDTO.getGoalName().trim())
+                                .weekNumber(weekNumber)
+                                .moodType(MoodType.CUSTOM)
+                                .title(title)
+                                .content(content)
+                                .isAiGenerated(false)
+                                .isCompleted(false)
+                                .build();
+                        tasksToSave.add(task);
+                    }
+                }
+            }
+        }
+
+        if (tasksToSave.isEmpty()) {
+            throw new BusinessException("Lộ trình phải có ít nhất 1 nhiệm vụ");
+        }
+
+        taskRepository.saveAll(tasksToSave);
+        userServiceGateway.updateOnboardingStatus(userId, true);
+        logger.info("User {} đã tạo thành công lộ trình tự thiết kế với {} nhiệm vụ, goalId: {}",
+                email, tasksToSave.size(), goalId);
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Tạo lộ trình tự thiết kế thành công")
+                .goalId(goalId)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void updateGoalVisibility(Long goalId, UpdateGoalVisibilityRequestDTO requestDTO) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        boolean hasCustomRoadmap = shopSubscriptionClient.hasCustomRoadmap(userId);
+        if (!hasCustomRoadmap) {
+            throw new BusinessException("Bạn cần đăng ký gói dịch vụ có tính năng Tự thiết kế lộ trình (CUSTOM_ROADMAP)");
+        }
+
+        UserGoal goal = goalRepository.findById(goalId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy mục tiêu: " + goalId));
+
+        if (!goal.getUserId().equals(userId)) {
+            throw new BusinessException("Bạn không có quyền chỉnh sửa mục tiêu này");
+        }
+
+        goal.setIsPublic(requestDTO.getIsPublic());
+        goalRepository.save(goal);
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message(Boolean.TRUE.equals(requestDTO.getIsPublic())
+                        ? "Đã công khai lộ trình cho cộng đồng thành công"
+                        : "Đã chuyển lộ trình về chế độ riêng tư")
+                .goalId(goalId)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void getPublicGoals() {
+        List<UserGoal> publicGoals = goalRepository.findPublicGoals();
+
+        List<PublicGoalSummaryDTO> responseList = new ArrayList<>();
+        for (UserGoal g : publicGoals) {
+            List<TaskEntity> tasks = taskRepository.findAllByGoalId(g.getId());
+            Map<Integer, List<TaskEntity>> tasksByWeek = tasks.stream()
+                    .filter(t -> t.getWeekNumber() != null)
+                    .collect(Collectors.groupingBy(TaskEntity::getWeekNumber));
+
+            List<CustomWeekDTO> weekDTOs = new ArrayList<>();
+            for (int w = 1; w <= 4; w++) {
+                List<TaskEntity> wTasks = tasksByWeek.getOrDefault(w, List.of());
+                if (!wTasks.isEmpty()) {
+                    weekDTOs.add(CustomWeekDTO.builder()
+                            .weekNumber(w)
+                            .tasks(wTasks.stream().map(t -> CustomTaskItemDTO.builder()
+                                    .title(t.getTitle())
+                                    .content(t.getContent())
+                                    .sourceTaskId(t.getId())
+                                    .build()).toList())
+                            .build());
+                }
+            }
+
+            responseList.add(PublicGoalSummaryDTO.builder()
+                    .goalId(g.getId())
+                    .goalName(g.getGoalName())
+                    .description(g.getDescription())
+                    .authorName(g.getAuthorName() != null ? g.getAuthorName() : "Pentava User")
+                    .createdAt(g.getCreatedAt())
+                    .weeks(weekDTOs)
+                    .build());
+        }
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy danh sách lộ trình cộng đồng thành công")
+                .publicGoals(responseList)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void clonePublicGoal(Long publicGoalId) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        boolean hasCustomRoadmap = shopSubscriptionClient.hasCustomRoadmap(userId);
+        if (!hasCustomRoadmap) {
+            throw new BusinessException("Bạn cần đăng ký gói dịch vụ có tính năng Tự thiết kế lộ trình (CUSTOM_ROADMAP) để sao chép lộ trình");
+        }
+
+        UserGoal templateGoal = goalRepository.findById(publicGoalId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy lộ trình công khai: " + publicGoalId));
+
+        if (!Boolean.TRUE.equals(templateGoal.getIsPublic())) {
+            throw new BusinessException("Lộ trình này không được công khai");
+        }
+
+        // Hoàn thành mục tiêu cũ nếu có
+        goalRepository.findByUserIdAndStatus(userId, GoalStatus.IN_PROGRESS).ifPresent(oldGoal -> {
+            oldGoal.setStatus(GoalStatus.COMPLETED);
+            oldGoal.setCompletedAt(LocalDateTime.now(VN_ZONE));
+            goalRepository.save(oldGoal);
+        });
+
+        String authorName = email;
+        UserProfile profile = profileRepository.findByEmail(email).orElse(null);
+        if (profile != null && profile.getName() != null && !profile.getName().isBlank()) {
+            authorName = profile.getName();
+        }
+
+        LocalDate goalStart = today();
+        UserGoal myGoal = UserGoal.builder()
+                .userId(userId)
+                .userEmail(email)
+                .goalName(templateGoal.getGoalName())
+                .description(templateGoal.getDescription())
+                .authorName(authorName)
+                .isCustom(true)
+                .isPublic(false) // Mặc định clone về là private của user
+                .status(GoalStatus.IN_PROGRESS)
+                .createdAt(LocalDateTime.now(VN_ZONE))
+                .startDate(goalStart)
+                .endDate(goalStart.plusDays(GOAL_DURATION_DAYS - 1))
+                .build();
+        myGoal = goalRepository.save(myGoal);
+
+        List<TaskEntity> sourceTasks = taskRepository.findAllByGoalId(publicGoalId);
+        List<TaskEntity> clonedTasks = new ArrayList<>();
+        for (TaskEntity st : sourceTasks) {
+            clonedTasks.add(TaskEntity.builder()
+                    .userId(userId)
+                    .goalId(myGoal.getId())
+                    .goalName(myGoal.getGoalName())
+                    .weekNumber(st.getWeekNumber())
+                    .moodType(st.getMoodType() != null ? st.getMoodType() : MoodType.CUSTOM)
+                    .title(st.getTitle())
+                    .content(st.getContent())
+                    .isAiGenerated(false)
+                    .isCompleted(false)
+                    .build());
+        }
+        taskRepository.saveAll(clonedTasks);
+        userServiceGateway.updateOnboardingStatus(userId, true);
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Sao chép lộ trình cộng đồng thành công")
+                .goalId(myGoal.getId())
+                .build());
+    }
+
+    // ==========================================
+    // KHẢO SÁT ĐẦU RA & BÁO CÁO CHUYỂN HÓA
+    // ==========================================
+
+    @Override
+    @Transactional
+    public void getGoalAssessmentContext(Long goalId) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        UserGoal goal = goalRepository.findById(goalId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy mục tiêu: " + goalId));
+
+        if (!goal.getUserId().equals(userId)) {
+            throw new BusinessException("Mục tiêu không thuộc về bạn");
+        }
+
+        boolean alreadyAssessed = goalAssessmentRepository.findByGoalId(goalId).isPresent();
+
+        UserProfile profile = profileRepository.findByUserId(userId)
+                .or(() -> profileRepository.findByEmail(email))
+                .orElse(null);
+
+        int baseSleep = resolveSleepScore(profile != null ? profile.getSleepHours() : null);
+        int baseExercise = resolveExerciseScore(profile != null ? profile.getExerciseFrequency() : null);
+        int baseStress = resolveStressScore(profile != null ? profile.getStressFrequency() : null);
+        int baseDiscipline = resolveDisciplineScore(profile != null ? profile.getHabitDuration() : null);
+        double baseOverall = Math.round(((baseSleep + baseExercise + baseStress + baseDiscipline) / 4.0) * 10.0) / 10.0;
+
+        LocalDate startDate = goal.getStartDate() != null ? goal.getStartDate() : (goal.getCreatedAt() != null ? goal.getCreatedAt().toLocalDate() : today());
+        LocalDate endDate = goal.resolveEndDate();
+        long days = ChronoUnit.DAYS.between(startDate, today()) + 1;
+        int daysElapsed = Math.max(1, (int) days);
+
+        GoalAssessmentContextDTO context = GoalAssessmentContextDTO.builder()
+                .goalId(goal.getId())
+                .goalName(goal.getGoalName())
+                .isCustom(Boolean.TRUE.equals(goal.getIsCustom()))
+                .startDate(startDate)
+                .endDate(endDate)
+                .daysElapsed(daysElapsed)
+                .isCompleted(goal.getStatus() == GoalStatus.COMPLETED)
+                .alreadyAssessed(alreadyAssessed)
+                .baseSleepHours(profile != null ? profile.getSleepHours() : null)
+                .baseExerciseFrequency(profile != null ? profile.getExerciseFrequency() : null)
+                .baseStressFrequency(profile != null ? profile.getStressFrequency() : null)
+                .baseHabitDuration(profile != null ? profile.getHabitDuration() : null)
+                .baseRoutine(profile != null ? profile.getRoutine() : null)
+                .baseSleepScore(baseSleep)
+                .baseExerciseScore(baseExercise)
+                .baseStressScore(baseStress)
+                .baseDisciplineScore(baseDiscipline)
+                .baseOverallScore(baseOverall)
+                .build();
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy thông tin đánh giá mục tiêu thành công")
+                .assessmentContext(context)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void submitGoalAssessment(Long goalId, GoalAssessmentRequestDTO dto) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        UserGoal goal = goalRepository.findById(goalId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy mục tiêu: " + goalId));
+
+        if (!goal.getUserId().equals(userId)) {
+            throw new BusinessException("Mục tiêu không thuộc về bạn");
+        }
+
+        if (goalAssessmentRepository.findByGoalId(goalId).isPresent()) {
+            throw new BusinessException("Mục tiêu này đã được hoàn thành đánh giá trước đó");
+        }
+
+        UserProfile profile = profileRepository.findByUserId(userId)
+                .or(() -> profileRepository.findByEmail(email))
+                .orElse(null);
+
+        int baseSleep = resolveSleepScore(profile != null ? profile.getSleepHours() : null);
+        int baseExercise = resolveExerciseScore(profile != null ? profile.getExerciseFrequency() : null);
+        int baseStress = resolveStressScore(profile != null ? profile.getStressFrequency() : null);
+        int baseDiscipline = resolveDisciplineScore(profile != null ? profile.getHabitDuration() : null);
+        double baseOverall = Math.round(((baseSleep + baseExercise + baseStress + baseDiscipline) / 4.0) * 10.0) / 10.0;
+
+        int postSleep = resolveSleepScore(dto.getSleepAnswer());
+        int postExercise = resolveExerciseScore(dto.getExerciseAnswer());
+        int postStress = resolveStressScore(dto.getStressAnswer());
+        int postDiscipline = resolveDisciplineScore(dto.getDisciplineAnswer());
+        double postOverall = Math.round(((postSleep + postExercise + postStress + postDiscipline) / 4.0) * 10.0) / 10.0;
+        double delta = Math.round((postOverall - baseOverall) * 10.0) / 10.0;
+
+        GoalAssessment assessment = GoalAssessment.builder()
+                .goalId(goalId)
+                .userId(userId)
+                .userEmail(email)
+                .baseSleepScore(baseSleep)
+                .baseExerciseScore(baseExercise)
+                .baseStressScore(baseStress)
+                .baseDisciplineScore(baseDiscipline)
+                .baseOverallScore(baseOverall)
+                .postSleepAnswer(dto.getSleepAnswer())
+                .postSleepScore(postSleep)
+                .postExerciseAnswer(dto.getExerciseAnswer())
+                .postExerciseScore(postExercise)
+                .postStressAnswer(dto.getStressAnswer())
+                .postStressScore(postStress)
+                .postDisciplineAnswer(dto.getDisciplineAnswer())
+                .postDisciplineScore(postDiscipline)
+                .postOverallScore(postOverall)
+                .deltaScore(delta)
+                .goalQuestionText(dto.getGoalQuestionText())
+                .goalQuestionAnswer(dto.getGoalQuestionAnswer())
+                .goalQuestionAnswerLabel(dto.getGoalQuestionAnswerLabel())
+                .selfPerceptionPercent(dto.getSelfPerceptionPercent())
+                .createdAt(LocalDateTime.now(VN_ZONE))
+                .build();
+        goalAssessmentRepository.save(assessment);
+
+        // Đánh dấu mục tiêu hoàn tất
+        goal.setStatus(GoalStatus.COMPLETED);
+        goal.setCompletedAt(LocalDateTime.now(VN_ZONE));
+        goalRepository.save(goal);
+
+        // Cập nhật lại chỉ số mới nhất vào UserProfile để kế thừa cho chu kỳ tiếp theo
+        if (profile != null) {
+            profile.setSleepHours(dto.getSleepAnswer());
+            profile.setExerciseFrequency(dto.getExerciseAnswer());
+            profile.setStressFrequency(dto.getStressAnswer());
+            profile.setHabitDuration(dto.getDisciplineAnswer());
+            profileRepository.save(profile);
+        }
+
+        GoalAssessmentReportDTO report = GoalAssessmentReportDTO.builder()
+                .goalId(goalId)
+                .goalName(goal.getGoalName())
+                .completedAt(goal.getCompletedAt())
+                .baseSleepScore(baseSleep)
+                .baseExerciseScore(baseExercise)
+                .baseStressScore(baseStress)
+                .baseDisciplineScore(baseDiscipline)
+                .baseOverallScore(baseOverall)
+                .postSleepAnswer(dto.getSleepAnswer())
+                .postSleepScore(postSleep)
+                .postExerciseAnswer(dto.getExerciseAnswer())
+                .postExerciseScore(postExercise)
+                .postStressAnswer(dto.getStressAnswer())
+                .postStressScore(postStress)
+                .postDisciplineAnswer(dto.getDisciplineAnswer())
+                .postDisciplineScore(postDiscipline)
+                .postOverallScore(postOverall)
+                .deltaScore(delta)
+                .goalQuestionText(dto.getGoalQuestionText())
+                .goalQuestionAnswer(dto.getGoalQuestionAnswer())
+                .goalQuestionAnswerLabel(dto.getGoalQuestionAnswerLabel())
+                .selfPerceptionPercent(dto.getSelfPerceptionPercent())
+                .build();
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Đánh giá mục tiêu thành công")
+                .assessmentReport(report)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void getGoalAssessmentReport(Long goalId) {
+        String email = currentUserProvider.getCurrentUserEmail();
+        Long userId = userServiceGateway.getUserIdByEmail(email)
+                .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
+
+        UserGoal goal = goalRepository.findById(goalId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy mục tiêu: " + goalId));
+
+        if (!goal.getUserId().equals(userId)) {
+            throw new BusinessException("Mục tiêu không thuộc về bạn");
+        }
+
+        GoalAssessment assessment = goalAssessmentRepository.findByGoalId(goalId)
+                .orElseThrow(() -> new BusinessException("Mục tiêu này chưa có báo cáo đánh giá"));
+
+        GoalAssessmentReportDTO report = GoalAssessmentReportDTO.builder()
+                .goalId(goalId)
+                .goalName(goal.getGoalName())
+                .completedAt(assessment.getCreatedAt())
+                .baseSleepScore(assessment.getBaseSleepScore())
+                .baseExerciseScore(assessment.getBaseExerciseScore())
+                .baseStressScore(assessment.getBaseStressScore())
+                .baseDisciplineScore(assessment.getBaseDisciplineScore())
+                .baseOverallScore(assessment.getBaseOverallScore())
+                .postSleepAnswer(assessment.getPostSleepAnswer())
+                .postSleepScore(assessment.getPostSleepScore())
+                .postExerciseAnswer(assessment.getPostExerciseAnswer())
+                .postExerciseScore(assessment.getPostExerciseScore())
+                .postStressAnswer(assessment.getPostStressAnswer())
+                .postStressScore(assessment.getPostStressScore())
+                .postDisciplineAnswer(assessment.getPostDisciplineAnswer())
+                .postDisciplineScore(assessment.getPostDisciplineScore())
+                .postOverallScore(assessment.getPostOverallScore())
+                .deltaScore(assessment.getDeltaScore())
+                .goalQuestionText(assessment.getGoalQuestionText())
+                .goalQuestionAnswer(assessment.getGoalQuestionAnswer())
+                .goalQuestionAnswerLabel(assessment.getGoalQuestionAnswerLabel())
+                .selfPerceptionPercent(assessment.getSelfPerceptionPercent())
+                .build();
+
+        outputPort.present(OnboardingResponseDTO.builder()
+                .message("Lấy báo cáo đánh giá thành công")
+                .assessmentReport(report)
+                .build());
+    }
+
+    private int resolveSleepScore(String sleep) {
+        if (sleep == null) return 50;
+        if (sleep.contains("Dưới 5")) return 0;
+        if (sleep.contains("5-6") || sleep.contains("5–6")) return 40;
+        if (sleep.contains("không đều") || sleep.contains("chập chờn")) return 50;
+        if (sleep.contains("7-8") || sleep.contains("7–8")) return 100;
+        return 50;
+    }
+
+    private int resolveExerciseScore(String exercise) {
+        if (exercise == null) return 40;
+        if (exercise.contains("không")) return 0;
+        if (exercise.contains("1-2") || exercise.contains("1–2")) return 40;
+        if (exercise.contains("3-4") || exercise.contains("3–4")) return 80;
+        if (exercise.contains("mỗi ngày")) return 100;
+        return 40;
+    }
+
+    private int resolveStressScore(String stress) {
+        if (stress == null) return 50;
+        if (stress.contains("mỗi ngày")) return 0;
+        if (stress.contains("Vài lần") || stress.contains("vài lần")) return 35;
+        if (stress.contains("Thỉnh thoảng") || stress.contains("thỉnh thoảng")) return 70;
+        if (stress.contains("Hiếm khi") || stress.contains("hiếm khi")) return 100;
+        return 50;
+    }
+
+    private int resolveDisciplineScore(String habit) {
+        if (habit == null) return 50;
+        if (habit.contains("Dưới 3 ngày") || habit.contains("bỏ cuộc") || habit.contains("vài ngày")) return 25;
+        if (habit.contains("1 tuần") || habit.contains("1-2 tuần") || habit.contains("1–2 tuần") || habit.contains("ngắt quãng")) return 50;
+        if (habit.contains("2-3 tuần") || habit.contains("tự giác") || habit.contains("phản xạ")) return 80;
+        if (habit.contains("Trên 3 tuần") || habit.contains("cuộc sống") || habit.contains("phần")) return 100;
+        return 50;
     }
 
     private LocalDate today() {

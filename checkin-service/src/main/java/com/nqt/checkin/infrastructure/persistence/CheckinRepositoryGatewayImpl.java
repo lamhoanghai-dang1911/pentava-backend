@@ -28,4 +28,16 @@ public class CheckinRepositoryGatewayImpl implements CheckinRepositoryGateway {
     public List<CheckinEntity> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
         return jpaRepository.findByUserIdAndCheckinDateBetweenOrderByCheckinDateAscCreatedAtAsc(userId, startDate, endDate);
     }
+
+    @Override
+    public long sumPhotoSizeBytesByUserId(Long userId) {
+        if (userId == null) return 0L;
+        return jpaRepository.sumPhotoSizeBytesByUserId(userId);
+    }
+
+    @Override
+    public long countPhotosByUserId(Long userId) {
+        if (userId == null) return 0L;
+        return jpaRepository.countByUserIdAndImageUrlIsNotNull(userId);
+    }
 }

@@ -8,4 +8,8 @@ public class StreakResponseDTO {
     private Integer currentStreak;
     private Integer longestStreak;
     private LocalDate lastCompletedDate;
+    private Integer freezesUsedThisMonth;
+    private Integer maxFreezesPerMonth;
+    private Boolean hasStreakProtection;
+    private Boolean streakFrozenYesterday;
 }

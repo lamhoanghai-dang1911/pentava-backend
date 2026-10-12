@@ -2,10 +2,8 @@ package com.nqt.onboarding.interfaceadapters.controller;
 
 import com.nqt.onboarding.interfaceadapters.presenter.OnboardingPresenter;
 import com.nqt.onboarding.usecase.boundary.OnboardingInputPort;
-import com.nqt.onboarding.usecase.dto.ConfirmDailyTasksRequestDTO;
-import com.nqt.onboarding.usecase.dto.MoodSelectionRequestDTO;
-import com.nqt.onboarding.usecase.dto.SwapTaskRequestDTO;
-import com.nqt.onboarding.usecase.dto.TaskProgressRequestDTO;
+import com.nqt.onboarding.usecase.dto.*;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -91,6 +89,43 @@ public class TaskController {
             @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         inputPort.getTaskHistory(startDate, endDate);
+        return presenter.getResponseEntity();
+    }
+
+    // Danh mục các task đã làm trong quá khứ theo từng mục tiêu & tuần
+    @GetMapping("/tasks/past-catalog")
+    public ResponseEntity<?> getPastTasksCatalog() {
+        inputPort.getPastTasksCatalog();
+        return presenter.getResponseEntity();
+    }
+
+    // Tự thiết kế lộ trình (Custom Roadmap)
+    @PostMapping("/goals/custom")
+    public ResponseEntity<?> createCustomGoal(@Valid @RequestBody CreateCustomGoalRequestDTO requestDTO) {
+        inputPort.createCustomGoal(requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    // Bật/tắt chế độ công khai cho lộ trình tự thiết kế
+    @PutMapping("/goals/{goalId}/visibility")
+    public ResponseEntity<?> updateGoalVisibility(
+            @PathVariable("goalId") Long goalId,
+            @Valid @RequestBody UpdateGoalVisibilityRequestDTO requestDTO) {
+        inputPort.updateGoalVisibility(goalId, requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    // Xem các lộ trình cộng đồng được chia sẻ công khai
+    @GetMapping("/goals/public")
+    public ResponseEntity<?> getPublicGoals() {
+        inputPort.getPublicGoals();
+        return presenter.getResponseEntity();
+    }
+
+    // Sao chép một lộ trình công khai làm lộ trình của mình
+    @PostMapping("/goals/public/{publicGoalId}/clone")
+    public ResponseEntity<?> clonePublicGoal(@PathVariable("publicGoalId") Long publicGoalId) {
+        inputPort.clonePublicGoal(publicGoalId);
         return presenter.getResponseEntity();
     }
 }

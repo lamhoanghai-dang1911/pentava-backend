@@ -82,10 +82,13 @@ services:
       GRPC_CLIENT_AUTH_SERVICE_ADDRESS: static://auth-service:9090
       JWT_SECRET: ${JWT_SECRET}
       GROQ_API_KEY: ${GROQ_API_KEY}
+      SHOP_SERVICE_URI: http://shop-service:8087
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
+        condition: service_started
+      shop-service:
         condition: service_started
     ports:
       - "8083:8083"
@@ -108,6 +111,7 @@ services:
       GRPC_CHECKIN_SERVICE_ADDRESS: static://checkin-service:9091
       GRPC_ONBOARDING_SERVICE_ADDRESS: static://onboarding-service:9092
       JWT_SECRET: ${JWT_SECRET}
+      SHOP_SERVICE_URI: http://shop-service:8087
     depends_on:
       postgres:
         condition: service_healthy
@@ -188,6 +192,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SKIN_BUCKET: ${SUPABASE_SKIN_BUCKET:-skin}
+      SHOP_SERVICE_URI: http://shop-service:8087
     depends_on:
       postgres:
         condition: service_healthy

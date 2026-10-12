@@ -59,6 +59,7 @@ public class ClipRepositoryJpaAdapter implements ClipRepositoryGateway {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Clip> findByUserGoalWeek(Long userId, Long goalId, int weekNumber) {
         return clipJpaRepository
                 .findByUserIdAndGoalIdAndWeekNumberOrderByCreatedAtDesc(userId, goalId, weekNumber)
@@ -78,15 +79,38 @@ public class ClipRepositoryJpaAdapter implements ClipRepositoryGateway {
     @Override
     @Transactional
     public void updateStatus(Long clipId, ClipStatus status, String storagePath, String errorMessage) {
+        updateStatus(clipId, status, storagePath, null, errorMessage);
+    }
+
+    @Override
+    @Transactional
+    public void updateStatus(Long clipId, ClipStatus status, String storagePath, Long fileSizeBytes, String errorMessage) {
         ClipEntity entity = clipJpaRepository.findById(clipId)
                 .orElseThrow(() -> new IllegalStateException("Clip " + clipId + " không tồn tại"));
         entity.setStatus(status);
         if (storagePath != null) {
             entity.setStoragePath(storagePath);
         }
+        if (fileSizeBytes != null) {
+            entity.setFileSizeBytes(fileSizeBytes);
+        }
         entity.setErrorMessage(errorMessage);
         entity.setUpdatedAt(LocalDateTime.now());
         clipJpaRepository.save(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long sumFileSizeBytesByUserId(Long userId) {
+        if (userId == null) return 0L;
+        return clipJpaRepository.sumFileSizeBytesByUserId(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByUserIdAndStatus(Long userId, ClipStatus status) {
+        if (userId == null) return 0L;
+        return clipJpaRepository.countByUserIdAndStatus(userId, status);
     }
 
     @Override
@@ -96,13 +120,13 @@ public class ClipRepositoryJpaAdapter implements ClipRepositoryGateway {
     }
 
     private Clip toDomain(ClipEntity entity) {
-        List<ClipPhotoRef> photos = entity.getPhotos().stream()
+        List<ClipPhotoRef> photos = (entity.getPhotos() == null) ? List.of() : entity.getPhotos().stream()
                 .map(p -> new ClipPhotoRef(p.getPhotoId(), p.getImageUrl(), p.getCheckinDate(), p.getDisplayOrder()))
                 .toList();
 
         return new Clip(
                 entity.getId(), entity.getUserId(), entity.getGoalId(), entity.getWeekNumber(),
-                entity.getStatus(), entity.getStoragePath(), entity.getErrorMessage(),
+                entity.getStatus(), entity.getStoragePath(), entity.getFileSizeBytes(), entity.getErrorMessage(),
                 entity.getCreatedAt(), entity.getUpdatedAt(), photos);
     }
 }

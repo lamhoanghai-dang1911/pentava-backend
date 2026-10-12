@@ -41,6 +41,7 @@ public class ClipInteractor implements ClipInputPort {
     private final ClipRepositoryGateway clipRepository;
     private final ClipRenderWorker clipRenderWorker;
     private final VideoStorageGateway videoStorageGateway;
+    private final com.nqt.cinema.infrastructure.client.ShopSubscriptionClient shopSubscriptionClient;
     private final long signedUrlExpirySeconds;
 
     public ClipInteractor(CurrentUserProvider currentUserProvider,
@@ -50,6 +51,7 @@ public class ClipInteractor implements ClipInputPort {
                           ClipRepositoryGateway clipRepository,
                           ClipRenderWorker clipRenderWorker,
                           VideoStorageGateway videoStorageGateway,
+                          com.nqt.cinema.infrastructure.client.ShopSubscriptionClient shopSubscriptionClient,
                           @Value("${cinema.render.signed-url-expiry-seconds:21600}") long signedUrlExpirySeconds) {
         this.currentUserProvider = currentUserProvider;
         this.userServiceGateway = userServiceGateway;
@@ -58,6 +60,7 @@ public class ClipInteractor implements ClipInputPort {
         this.clipRepository = clipRepository;
         this.clipRenderWorker = clipRenderWorker;
         this.videoStorageGateway = videoStorageGateway;
+        this.shopSubscriptionClient = shopSubscriptionClient;
         this.signedUrlExpirySeconds = signedUrlExpirySeconds;
     }
 
@@ -66,6 +69,9 @@ public class ClipInteractor implements ClipInputPort {
     public ClipDTO createClip(Long goalId, int weekNumber, CreateClipRequestDTO request) {
         Long userId = resolveCurrentUserId();
         CinemaGoal goal = goalResolver.resolve(userId, goalId);
+
+        // 1. Kiểm tra hạn mức dung lượng lưu trữ (STORAGE_EXPANSION)
+        checkStorageQuota(userId);
 
         if (weekNumber < 1 || weekNumber > GoalWeekCalculator.WEEKS_PER_GOAL) {
             throw new CinemaBusinessException("weekNumber phải từ 1 đến " + GoalWeekCalculator.WEEKS_PER_GOAL);
@@ -109,11 +115,75 @@ public class ClipInteractor implements ClipInputPort {
         }
 
         Clip saved = clipRepository.create(
-                new Clip(null, userId, goalId, weekNumber, ClipStatus.PENDING, null, null, null, null, photoRefs));
+                new Clip(null, userId, goalId, weekNumber, ClipStatus.PENDING, null, null, null, null, null, photoRefs));
 
         clipRenderWorker.renderAsync(saved.id());
 
         return toDto(saved, null);
+    }
+
+    @Override
+    @Transactional
+    public ClipDTO createJourneyClip(Long goalId, com.nqt.cinema.usecase.dto.CreateJourneyClipRequestDTO request) {
+        Long userId = resolveCurrentUserId();
+
+        // 1. Kiểm tra quyền sở hữu tính năng Multi-Angle & Dynamic Templates (Ghép hành trình nhiều tuần)
+        if (!shopSubscriptionClient.hasMultiAngleTemplates(userId)) {
+            throw new CinemaBusinessException("Tính năng tạo video ghép hành trình nhiều tuần yêu cầu gói cước nâng cao (Gold hoặc Premium). Vui lòng nâng cấp gói để sử dụng!");
+        }
+
+        // 2. Kiểm tra hạn mức dung lượng lưu trữ (STORAGE_EXPANSION)
+        checkStorageQuota(userId);
+
+        if (clipRepository.hasActiveJob(userId)) {
+            throw new CinemaBusinessException("Bạn đang có 1 video khác đang xử lý, vui lòng đợi xong rồi tạo tiếp");
+        }
+
+        CinemaGoal goal = goalResolver.resolve(userId, goalId);
+        List<Long> requestedIds = request.photoIds();
+        if (new LinkedHashSet<>(requestedIds).size() != requestedIds.size()) {
+            throw new CinemaBusinessException("Danh sách ảnh bị trùng lặp");
+        }
+
+        // Lấy ảnh qua toàn bộ 4 tuần của mục tiêu
+        LocalDate fullGoalStart = GoalWeekCalculator.weekStartOf(goal.startDate(), 1);
+        LocalDate fullGoalEnd = GoalWeekCalculator.weekEndOf(goal.startDate(), GoalWeekCalculator.WEEKS_PER_GOAL);
+
+        Map<Long, CheckinPhoto> byId = new HashMap<>();
+        for (CheckinPhoto p : checkinGateway.findByUserAndDateRange(userId, fullGoalStart, fullGoalEnd)) {
+            byId.put(p.id(), p);
+        }
+
+        List<ClipPhotoRef> photoRefs = new ArrayList<>();
+        int order = 0;
+        for (Long photoId : requestedIds) {
+            CheckinPhoto photo = byId.get(photoId);
+            if (photo == null) {
+                throw new CinemaBusinessException("Ảnh id=" + photoId + " không hợp lệ hoặc không thuộc mục tiêu này");
+            }
+            photoRefs.add(new ClipPhotoRef(photo.id(), photo.imageUrl(), photo.checkinDate(), order++));
+        }
+
+        // weekNumber = 0 biểu thị clip ghép hành trình tổng hợp nhiều tuần
+        Clip saved = clipRepository.create(
+                new Clip(null, userId, goalId, 0, ClipStatus.PENDING, null, null, null, null, null, photoRefs));
+
+        clipRenderWorker.renderAsync(saved.id());
+
+        return toDto(saved, null);
+    }
+
+    private void checkStorageQuota(Long userId) {
+        long quotaBytes = shopSubscriptionClient.getStorageQuotaBytes(userId);
+        long videoUsage = clipRepository.sumFileSizeBytesByUserId(userId);
+        long photoUsage = checkinGateway.getPhotoStorageSummary(userId).totalSizeBytes();
+        long totalUsage = videoUsage + photoUsage;
+        if (totalUsage >= quotaBytes) {
+            throw new CinemaBusinessException(String.format(
+                    "Dung lượng lưu trữ của bạn đã đầy (đã dùng %,d MB / %,d MB bao gồm cả clip và hình ảnh). Vui lòng nâng cấp gói cước để lưu thêm video hoặc xóa bớt video cũ.",
+                    totalUsage / (1024 * 1024), quotaBytes / (1024 * 1024)
+            ));
+        }
     }
 
     @Override

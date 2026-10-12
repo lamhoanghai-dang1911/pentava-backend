@@ -120,8 +120,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
         if (request.getPackageCode() != null && !request.getPackageCode().isBlank()) {
             RubyPackage pack = RubyPackage.fromCode(request.getPackageCode())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Gói nạp Ruby không hợp lệ: '" + request.getPackageCode() + "'. Các gói hợp lệ: SMALL, MEDIUM, LARGE"
-                    ));
+                            "Gói nạp Ruby không hợp lệ: '" + request.getPackageCode()
+                                    + "'. Các gói hợp lệ: SMALL, MEDIUM, LARGE"));
             packageCode = pack.getCode();
             packageName = pack.getName();
             amountVnd = pack.getPriceVnd();
@@ -143,7 +143,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                     throw new IllegalArgumentException("Số tiền nạp tối thiểu là 20.000 VNĐ (tương đương 10 Ruby)");
                 }
                 if (request.getAmountVnd() % BASE_VND_PER_RUBY != 0) {
-                    throw new IllegalArgumentException("Số tiền nạp lẻ phải là bội số của 2.000 VNĐ (10 Ruby = 20.000 VNĐ)");
+                    throw new IllegalArgumentException(
+                            "Số tiền nạp lẻ phải là bội số của 2.000 VNĐ (10 Ruby = 20.000 VNĐ)");
                 }
                 packageCode = "CUSTOM";
                 packageName = "Nạp lẻ";
@@ -175,7 +176,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
         }
         // 4. Không có thông tin hợp lệ
         else {
-            throw new IllegalArgumentException("Vui lòng chọn gói nạp Ruby (SMALL, MEDIUM, LARGE) hoặc nhập số tiền nạp lẻ (tối thiểu 20.000 VNĐ = 10 Ruby)");
+            throw new IllegalArgumentException(
+                    "Vui lòng chọn gói nạp Ruby (SMALL, MEDIUM, LARGE) hoặc nhập số tiền nạp lẻ (tối thiểu 20.000 VNĐ = 10 Ruby)");
         }
 
         // Sinh mã giao dịch: ví dụ PENTAVA849201
@@ -204,8 +206,7 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                 URLEncoder.encode(sepayAccountNumber, StandardCharsets.UTF_8),
                 URLEncoder.encode(sepayBankCode, StandardCharsets.UTF_8),
                 amountVnd,
-                URLEncoder.encode(txCode, StandardCharsets.UTF_8)
-        );
+                URLEncoder.encode(txCode, StandardCharsets.UTF_8));
 
         log.info("Initialized topup for user {}: txCode={}, package={}, amountVnd={}, rubyAmount={}",
                 userId, txCode, packageCode, amountVnd, rubyAmount);
@@ -231,19 +232,19 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
     public void handleSepayWebhook(SepayWebhookPayloadDTO payload, String authHeader) {
         log.info("Received SePay webhook: {}", payload);
 
-        // Kiểm tra API Key từ SePay header nếu đã được cấu hình khác giá trị placeholder
+        // Kiểm tra API Key từ SePay header nếu đã được cấu hình khác giá trị
+        // placeholder
         if (sepayApiKey != null && !sepayApiKey.isBlank() && !"your_sepay_api_key_here".equals(sepayApiKey)) {
             String expected = "Apikey " + sepayApiKey;
-            boolean isSepayApiKey = authHeader != null && (
-                    authHeader.trim().equalsIgnoreCase(expected)
+            boolean isSepayApiKey = authHeader != null && (authHeader.trim().equalsIgnoreCase(expected)
                     || authHeader.trim().equalsIgnoreCase(sepayApiKey)
-                    || authHeader.trim().contains(sepayApiKey)
-            );
+                    || authHeader.trim().contains(sepayApiKey));
             // Cho phép cả Bearer token khi dev/tester test trực tiếp trên Swagger UI
             boolean isBearerToken = authHeader != null && authHeader.trim().startsWith("Bearer ");
 
             if (!isSepayApiKey && !isBearerToken) {
-                log.warn("Unauthorized SePay webhook call. Expected header: {} hoặc Bearer token, Actual: {}", expected, authHeader);
+                log.warn("Unauthorized SePay webhook call. Expected header: {} hoặc Bearer token, Actual: {}", expected,
+                        authHeader);
                 throw new IllegalStateException("Unauthorized SePay Webhook");
             }
         }

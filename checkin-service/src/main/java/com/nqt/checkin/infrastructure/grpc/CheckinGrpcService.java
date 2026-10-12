@@ -76,4 +76,32 @@ public class CheckinGrpcService extends CheckinServiceGrpc.CheckinServiceImplBas
                     .withDescription("Lỗi khi đọc dữ liệu check-in").asRuntimeException());
         }
     }
+
+    @Override
+    public void getPhotoStorageSummary(com.nqt.common.grpc.checkin.GetPhotoStorageSummaryRequest request,
+                                       io.grpc.stub.StreamObserver<com.nqt.common.grpc.checkin.GetPhotoStorageSummaryResponse> responseObserver) {
+        if (request.getUserId() <= 0) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("userId không hợp lệ").asRuntimeException());
+            return;
+        }
+
+        try {
+            long totalBytes = checkinRepositoryGateway.sumPhotoSizeBytesByUserId(request.getUserId());
+            long count = checkinRepositoryGateway.countPhotosByUserId(request.getUserId());
+
+            com.nqt.common.grpc.checkin.GetPhotoStorageSummaryResponse response =
+                    com.nqt.common.grpc.checkin.GetPhotoStorageSummaryResponse.newBuilder()
+                            .setTotalPhotoSizeBytes(totalBytes)
+                            .setPhotoCount(count)
+                            .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            logger.error("Lỗi khi đọc photo storage summary cho userId {}", request.getUserId(), e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Lỗi khi đọc dung lượng ảnh check-in").asRuntimeException());
+        }
+    }
 }

@@ -9,6 +9,18 @@ option java_outer_classname = "CheckinProto";
 service CheckinService {
   // Dùng bởi cinema-service: lấy toàn bộ ảnh check-in của 1 user trong khoảng ngày (gồm cả 2 đầu)
   rpc GetCheckinsByDateRange(GetCheckinsByDateRangeRequest) returns (GetCheckinsByDateRangeResponse);
+
+  // Lấy tổng dung lượng ảnh check-in và số lượng ảnh của 1 user
+  rpc GetPhotoStorageSummary(GetPhotoStorageSummaryRequest) returns (GetPhotoStorageSummaryResponse);
+}
+
+message GetPhotoStorageSummaryRequest {
+  int64 user_id = 1;
+}
+
+message GetPhotoStorageSummaryResponse {
+  int64 total_photo_size_bytes = 1;
+  int64 photo_count = 2;
 }
 
 message GetCheckinsByDateRangeRequest {

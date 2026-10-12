@@ -44,6 +44,23 @@ public class CheckinGrpcClientAdapter implements CheckinGateway {
         }
     }
 
+    @Override
+    public com.nqt.cinema.domain.PhotoStorageSummary getPhotoStorageSummary(Long userId) {
+        if (userId == null) return new com.nqt.cinema.domain.PhotoStorageSummary(0L, 0L);
+        try {
+            com.nqt.common.grpc.checkin.GetPhotoStorageSummaryResponse response = checkinStub
+                    .withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .getPhotoStorageSummary(com.nqt.common.grpc.checkin.GetPhotoStorageSummaryRequest.newBuilder()
+                            .setUserId(userId)
+                            .build());
+
+            return new com.nqt.cinema.domain.PhotoStorageSummary(response.getTotalPhotoSizeBytes(), response.getPhotoCount());
+        } catch (Exception e) {
+            logger.warn("gRPC call getPhotoStorageSummary thất bại cho userId={}: {}. Sử dụng mặc định 0.", userId, e.getMessage());
+            return new com.nqt.cinema.domain.PhotoStorageSummary(0L, 0L);
+        }
+    }
+
     private CheckinPhoto toPhoto(CheckinItem item) {
         LocalDateTime createdAt = item.getCreatedAt().isBlank() ? null : LocalDateTime.parse(item.getCreatedAt());
         return new CheckinPhoto(

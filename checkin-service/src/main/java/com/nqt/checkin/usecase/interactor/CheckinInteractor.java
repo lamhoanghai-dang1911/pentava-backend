@@ -49,6 +49,9 @@ public class CheckinInteractor implements CheckinInputPort {
                         .build());
 
         entity.setImageUrl(imageUrl);
+        if (requestDTO.getFileSizeBytes() != null && requestDTO.getFileSizeBytes() > 0) {
+            entity.setFileSizeBytes(requestDTO.getFileSizeBytes());
+        }
         checkinRepositoryGateway.save(entity);
 
         outputPort.present(CheckinResponseDTO.builder()

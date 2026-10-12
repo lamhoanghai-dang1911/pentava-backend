@@ -10,6 +10,7 @@ public record Clip(
         int weekNumber,
         ClipStatus status,
         String storagePath,
+        Long fileSizeBytes,
         String errorMessage,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,

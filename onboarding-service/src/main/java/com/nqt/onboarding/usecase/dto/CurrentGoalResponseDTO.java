@@ -10,4 +10,7 @@ public class CurrentGoalResponseDTO {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+    private Boolean isCustom;
+    private Boolean isPublic;
+    private String description;
 }

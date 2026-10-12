@@ -15,5 +15,7 @@ public interface UserGoalRepositoryGateway {
     // liệt kê danh sách mục tiêu để xem lại clip cũ, kể cả mục tiêu đã COMPLETED hoặc lặp lại tên cũ.
     List<UserGoal> findAllByUserId(Long userId);
 
+    List<UserGoal> findPublicGoals();
+
     UserGoal save(UserGoal goal);
 }

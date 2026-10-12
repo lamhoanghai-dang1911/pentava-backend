@@ -51,4 +51,27 @@ public class OnboardingController {
         inputPort.submitGoalRenewal(requestDTO);
         return presenter.getResponseEntity();
     }
+
+    // ➕ Lấy thông tin & baseline cho bài khảo sát đầu ra
+    @GetMapping("/goals/{goalId}/assessment-context")
+    public ResponseEntity<?> getGoalAssessmentContext(@PathVariable("goalId") Long goalId) {
+        inputPort.getGoalAssessmentContext(goalId);
+        return presenter.getResponseEntity();
+    }
+
+    // ➕ Nộp bài khảo sát đầu ra & chốt hoàn thành mục tiêu
+    @PostMapping("/goals/{goalId}/assessment")
+    public ResponseEntity<?> submitGoalAssessment(
+            @PathVariable("goalId") Long goalId,
+            @Valid @RequestBody GoalAssessmentRequestDTO requestDTO) {
+        inputPort.submitGoalAssessment(goalId, requestDTO);
+        return presenter.getResponseEntity();
+    }
+
+    // ➕ Xem lại báo cáo chuyển hóa sau khi hoàn thành
+    @GetMapping("/goals/{goalId}/assessment-report")
+    public ResponseEntity<?> getGoalAssessmentReport(@PathVariable("goalId") Long goalId) {
+        inputPort.getGoalAssessmentReport(goalId);
+        return presenter.getResponseEntity();
+    }
 }

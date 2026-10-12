@@ -31,4 +31,19 @@ public class TaskRepositoryAdapter implements TaskRepositoryGateway {
     public List<TaskEntity> findByIds(List<Long> taskIds) {
         return springDataTaskRepository.findAllById(taskIds);
     }
+
+    @Override
+    public List<TaskEntity> findTasksForGoalAndWeek(Long goalId, Integer weekNumber) {
+        return springDataTaskRepository.findByGoalIdAndWeekNumberOrderByIdAsc(goalId, weekNumber);
+    }
+
+    @Override
+    public List<TaskEntity> findAllByGoalId(Long goalId) {
+        return springDataTaskRepository.findByGoalIdOrderByIdAsc(goalId);
+    }
+
+    @Override
+    public List<TaskEntity> findByUserIdOrderByGoalIdDescWeekNumberAscIdAsc(Long userId) {
+        return springDataTaskRepository.findByUserIdOrderByGoalIdDescWeekNumberAscIdAsc(userId);
+    }
 }

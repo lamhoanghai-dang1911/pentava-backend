@@ -40,6 +40,13 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
     }
 
     @Override
+    public List<UserGoal> findPublicGoals() {
+        return jpaRepository.findByIsPublicTrueOrderByCreatedAtDesc().stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public UserGoal save(UserGoal goal) {
         UserGoalEntity saved = jpaRepository.save(toEntity(goal));
         return toDomain(saved);
@@ -56,6 +63,10 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
                 .completedAt(entity.getCompletedAt())
                 .startDate(entity.getStartDate())
                 .endDate(entity.getEndDate())
+                .isCustom(entity.getIsCustom())
+                .isPublic(entity.getIsPublic())
+                .description(entity.getDescription())
+                .authorName(entity.getAuthorName())
                 .build();
     }
 
@@ -70,6 +81,10 @@ public class UserGoalRepositoryImpl implements UserGoalRepositoryGateway {
                 .completedAt(domain.getCompletedAt())
                 .startDate(domain.getStartDate())
                 .endDate(domain.getEndDate())
+                .isCustom(domain.getIsCustom())
+                .isPublic(domain.getIsPublic())
+                .description(domain.getDescription())
+                .authorName(domain.getAuthorName())
                 .build();
     }
 }

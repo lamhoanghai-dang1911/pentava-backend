@@ -27,6 +27,9 @@ public class CheckinEntity {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "file_size_bytes")
+    private Long fileSizeBytes;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 }

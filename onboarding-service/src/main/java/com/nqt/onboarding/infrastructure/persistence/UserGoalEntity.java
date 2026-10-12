@@ -39,4 +39,18 @@ public class UserGoalEntity {
     // Nullable để không vỡ các dòng dữ liệu cũ tạo trước khi có 2 cột này (ddl-auto=update sẽ tự thêm cột NULL).
     private LocalDate startDate;
     private LocalDate endDate; // ngày cuối cùng của tuần 4, TÍNH CẢ ngày này (startDate + 27)
+
+    @Column(name = "is_custom")
+    @Builder.Default
+    private Boolean isCustom = false;
+
+    @Column(name = "is_public")
+    @Builder.Default
+    private Boolean isPublic = false;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "author_name")
+    private String authorName;
 }

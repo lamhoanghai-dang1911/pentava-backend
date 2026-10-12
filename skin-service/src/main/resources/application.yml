@@ -34,6 +34,9 @@ supabase:
   url: ${SUPABASE_URL:https://olgtvgfgpaydkopjhern.supabase.co}
   skin-bucket: ${SUPABASE_SKIN_BUCKET:skin}
 
+shop-service:
+  url: ${SHOP_SERVICE_URI:http://localhost:8087}
+
 springdoc:
   api-docs:
     enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}

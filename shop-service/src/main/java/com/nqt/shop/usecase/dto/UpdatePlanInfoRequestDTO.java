@@ -29,7 +29,7 @@ public class UpdatePlanInfoRequestDTO {
     private String badge;
 
     @JsonProperty("isActive")
-    @JsonAlias({"active", "is_active"})
+    @JsonAlias({ "active", "is_active" })
     private Boolean isActive;
 
     private Integer displayOrder;

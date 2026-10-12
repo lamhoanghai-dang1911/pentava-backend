@@ -9,4 +9,7 @@ public interface TaskRepositoryGateway {
     List<TaskEntity> findTasksForUserAndWeek(Long userId, Integer weekNumber);
     List<TaskEntity> findByUserIdAndGoalIdAndMoodType(Long userId, Long goalId, MoodType moodType);
     List<TaskEntity> findByIds(List<Long> taskIds); // ➕ mới, dùng để build lại TaskResponseDTO từ danh sách taskId đã chọn
+    List<TaskEntity> findTasksForGoalAndWeek(Long goalId, Integer weekNumber);
+    List<TaskEntity> findAllByGoalId(Long goalId);
+    List<TaskEntity> findByUserIdOrderByGoalIdDescWeekNumberAscIdAsc(Long userId);
 }

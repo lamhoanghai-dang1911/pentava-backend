@@ -49,4 +49,9 @@ public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepository
     public List<TaskProgressEntity> findByUserIdAndDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
         return jpaRepository.findByUserIdAndTaskDateBetweenAndIsDeletedFalseOrderByTaskDateDesc(userId, startDate, endDate);
     }
+
+    @Override
+    public List<Long> findDistinctCompletedTaskIdsByUserId(Long userId) {
+        return jpaRepository.findDistinctCompletedTaskIdsByUserId(userId);
+    }
 }

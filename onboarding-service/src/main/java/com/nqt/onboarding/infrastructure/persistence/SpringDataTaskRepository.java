@@ -13,4 +13,10 @@ public interface SpringDataTaskRepository extends JpaRepository<TaskEntity, Long
     List<TaskEntity> findTasksForUserAndWeek(@Param("userId") Long userId, @Param("weekNumber") Integer weekNumber);
 
     List<TaskEntity> findByUserIdAndGoalIdAndMoodType(Long userId, Long goalId, MoodType moodType); // ➕ mới
+
+    List<TaskEntity> findByGoalIdAndWeekNumberOrderByIdAsc(Long goalId, Integer weekNumber);
+
+    List<TaskEntity> findByGoalIdOrderByIdAsc(Long goalId);
+
+    List<TaskEntity> findByUserIdOrderByGoalIdDescWeekNumberAscIdAsc(Long userId);
 }

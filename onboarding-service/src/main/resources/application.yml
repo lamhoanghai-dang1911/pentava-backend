@@ -55,6 +55,9 @@ groq:
   api-key: ${GROQ_API_KEY:}
   model: ${GROQ_MODEL:openai/gpt-oss-120b}
 
+shop-service:
+  url: ${SHOP_SERVICE_URI:http://localhost:8087}
+
 logging:
   level:
     root: ${LOGGING_LEVEL_ROOT:INFO}

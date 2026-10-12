@@ -9,4 +9,6 @@ public interface CheckinRepositoryGateway {
     Optional<CheckinEntity> findByUserTaskProgressAndDate(Long userId, Long taskProgressId, LocalDate date);
     CheckinEntity save(CheckinEntity entity);
     List<CheckinEntity> findByUserAndDateRange(Long userId, LocalDate startDate, LocalDate endDate);
+    long sumPhotoSizeBytesByUserId(Long userId);
+    long countPhotosByUserId(Long userId);
 }

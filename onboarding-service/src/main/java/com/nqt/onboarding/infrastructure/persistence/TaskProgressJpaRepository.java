@@ -18,4 +18,7 @@ public interface TaskProgressJpaRepository extends JpaRepository<TaskProgressEnt
     List<TaskProgressEntity> findByUserIdAndTaskDateAndIsDeletedFalse(Long userId, LocalDate taskDate);
     List<TaskProgressEntity> findByUserIdAndTaskDateBetweenAndIsDeletedFalseOrderByTaskDateDesc(
             Long userId, LocalDate startDate, LocalDate endDate);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT tp.taskId FROM TaskProgressEntity tp WHERE tp.userId = :userId AND tp.isCompleted = true AND tp.isDeleted = false")
+    List<Long> findDistinctCompletedTaskIdsByUserId(@org.springframework.data.repository.query.Param("userId") Long userId);
 }

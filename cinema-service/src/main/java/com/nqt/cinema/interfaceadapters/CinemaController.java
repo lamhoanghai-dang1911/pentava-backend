@@ -24,6 +24,12 @@ public class CinemaController {
     private final ClipInputPort clipInputPort;
 
 
+    @Operation(summary = "Xem dung lượng lưu trữ hiện tại (video + hình ảnh) và trạng thái gói cước")
+    @GetMapping("/storage/quota")
+    public ResponseEntity<CinemaStorageQuotaDTO> getStorageQuota() {
+        return ResponseEntity.ok(inputPort.getStorageQuota());
+    }
+
     @Operation(summary = "Danh sách mục tiêu của user (mọi trạng thái)")
     @GetMapping("/goals")
     public ResponseEntity<List<GoalSummaryDTO>> getGoals() {
@@ -60,6 +66,18 @@ public class CinemaController {
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(clipInputPort.createClip(goalId, weekNumber, request));
     }
+
+    @Operation(
+            summary = "Tạo clip tổng hợp đa tuần / toàn bộ hành trình (Multi-Angle Journey Clip)",
+            description = "Ghép ảnh xuyên suốt nhiều tuần (tuần 1 đến 4). Yêu cầu gói đăng ký có tính năng MULTI_ANGLE_TEMPLATES.")
+    @PostMapping("/goals/{goalId}/journey-clips")
+    public ResponseEntity<ClipDTO> createJourneyClip(
+            @PathVariable("goalId") Long goalId,
+            @Valid @RequestBody CreateJourneyClipRequestDTO request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(clipInputPort.createJourneyClip(goalId, request));
+    }
+
 
     @Operation(summary = "Danh sách clip đã tạo của một tuần")
     @GetMapping("/goals/{goalId}/weeks/{weekNumber}/clips")

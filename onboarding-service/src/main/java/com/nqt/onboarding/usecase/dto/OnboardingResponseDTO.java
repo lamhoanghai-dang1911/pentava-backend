@@ -22,4 +22,8 @@ public class OnboardingResponseDTO {
     private CurrentGoalResponseDTO currentGoal;
     private StreakResponseDTO streak;
     private List<DailyTaskHistoryDTO> taskHistory;
+    private List<PastGoalCatalogDTO> pastTaskCatalog;
+    private List<PublicGoalSummaryDTO> publicGoals;
+    private GoalAssessmentContextDTO assessmentContext;
+    private GoalAssessmentReportDTO assessmentReport;
 }

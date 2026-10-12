@@ -30,9 +30,10 @@ public class SkinInteractor implements SkinInputPort {
     private final SkinItemRepository skinItemRepository;
     private final UserInventoryRepository userInventoryRepository;
     private final UserEquippedSkinRepository userEquippedSkinRepository;
+    private final com.nqt.skin.infrastructure.client.ShopSubscriptionClient shopSubscriptionClient;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AvatarRenderResponseDTO getAvatar(Long userId) {
         List<AvatarLayerDTO> layers = new ArrayList<>();
 
@@ -49,6 +50,7 @@ public class SkinInteractor implements SkinInputPort {
 
         // 2. Thêm các món user đã trang bị (sắp xếp theo layer_order ASC)
         if (userId != null) {
+            boolean hasVip = shopSubscriptionClient.hasUnlockAllSkins(userId);
             List<UserEquippedSkinEntity> equipped = userEquippedSkinRepository.findByUserIdOrderBySkinItemLayerOrderAsc(userId);
             for (UserEquippedSkinEntity eq : equipped) {
                 SkinItemEntity item = eq.getSkinItem();
@@ -56,6 +58,15 @@ public class SkinInteractor implements SkinInputPort {
                 if (item.getSlot() == Slot.BASE) {
                     continue;
                 }
+
+                // Kiểm tra nếu user hết hạn gói VIP và không sở hữu skin này vĩnh viễn trong túi đồ
+                if (!hasVip && !userInventoryRepository.existsByUserIdAndSkinItemId(userId, item.getId())) {
+                    log.info("User {} không còn gói VIP sở hữu toàn bộ trang phục, tự động tháo trang phục {} ({}) về mặc định",
+                            userId, item.getId(), item.getName());
+                    userEquippedSkinRepository.delete(eq);
+                    continue;
+                }
+
                 layers.add(
                         AvatarLayerDTO.builder()
                                 .layerOrder(item.getLayerOrder())
@@ -88,11 +99,25 @@ public class SkinInteractor implements SkinInputPort {
     @Override
     @Transactional(readOnly = true)
     public List<SkinItemResponseDTO> getUserInventory(Long userId) {
-        List<UserInventoryEntity> inventory = userInventoryRepository.findByUserId(userId);
+        boolean hasVip = shopSubscriptionClient.hasUnlockAllSkins(userId);
         Set<Long> equippedSkinIds = userEquippedSkinRepository.findByUserIdOrderBySkinItemLayerOrderAsc(userId).stream()
                 .map(eq -> eq.getSkinItem().getId())
                 .collect(Collectors.toSet());
 
+        // Nếu sở hữu gói VIP UNLOCK_ALL_SKINS: Mở khóa toàn bộ kho trang phục trong cửa hàng
+        if (hasVip) {
+            return skinItemRepository.findByIsActiveTrueOrderByLayerOrderAsc().stream()
+                    .filter(item -> item.getSlot() != Slot.BASE)
+                    .map(item -> {
+                        SkinItemResponseDTO dto = toDto(item);
+                        dto.setIsEquipped(equippedSkinIds.contains(item.getId()));
+                        return dto;
+                    })
+                    .sorted(Comparator.comparingInt(SkinItemResponseDTO::getLayerOrder))
+                    .collect(Collectors.toList());
+        }
+
+        List<UserInventoryEntity> inventory = userInventoryRepository.findByUserId(userId);
         return inventory.stream()
                 .map(ui -> {
                     SkinItemEntity item = ui.getSkinItem();
@@ -114,9 +139,10 @@ public class SkinInteractor implements SkinInputPort {
             throw new IllegalArgumentException("Không thể trang bị nhân vật cơ bản như một trang phục");
         }
 
-        // Kiểm tra user có sở hữu skin này không
+        // Kiểm tra user có sở hữu skin này không (hoặc có quyền VIP UNLOCK_ALL_SKINS)
         boolean owned = userInventoryRepository.existsByUserIdAndSkinItemId(userId, skinId);
-        if (!owned) {
+        boolean hasVip = shopSubscriptionClient.hasUnlockAllSkins(userId);
+        if (!owned && !hasVip) {
             throw new SkinNotOwnedException("Bạn chưa sở hữu skin này: " + skin.getName());
         }
 
@@ -137,7 +163,8 @@ public class SkinInteractor implements SkinInputPort {
             userEquippedSkinRepository.save(newEq);
         }
 
-        log.info("User {} equipped skin {} ({}) to slot {}", userId, skin.getId(), skin.getName(), skin.getSlot());
+        log.info("User {} equipped skin {} ({}) to slot {} (VIP status: {})",
+                userId, skin.getId(), skin.getName(), skin.getSlot(), hasVip);
         return getAvatar(userId);
     }
 

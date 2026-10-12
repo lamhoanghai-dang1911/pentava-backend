@@ -45,8 +45,9 @@ public class ClipRenderWorker {
 
             clipRepository.updateStatus(clipId, ClipStatus.UPLOADING, null, null);
             String storagePath = videoStorageGateway.upload(rendered.file(), clip.userId(), clipId);
+            long fileSizeBytes = rendered.file().length();
 
-            clipRepository.updateStatus(clipId, ClipStatus.COMPLETED, storagePath, null);
+            clipRepository.updateStatus(clipId, ClipStatus.COMPLETED, storagePath, fileSizeBytes, null);
         } catch (Exception e) {
             logger.error("Render clip {} thất bại", clipId, e);
             clipRepository.updateStatus(clipId, ClipStatus.FAILED, null, safeMessage(e));

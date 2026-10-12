@@ -22,4 +22,16 @@ public interface OnboardingInputPort {
     void swapDailyTask(SwapTaskRequestDTO requestDTO);
     void getCurrentStreak();
     void getTaskHistory(LocalDate startDate, LocalDate endDate);
+
+    // ➕ Lộ trình tự thiết kế & công khai cộng đồng
+    void getPastTasksCatalog();
+    void createCustomGoal(CreateCustomGoalRequestDTO requestDTO);
+    void updateGoalVisibility(Long goalId, UpdateGoalVisibilityRequestDTO requestDTO);
+    void getPublicGoals();
+    void clonePublicGoal(Long publicGoalId);
+
+    // ➕ Khảo sát đầu ra & Báo cáo chuyển hóa
+    void getGoalAssessmentContext(Long goalId);
+    void submitGoalAssessment(Long goalId, GoalAssessmentRequestDTO requestDTO);
+    void getGoalAssessmentReport(Long goalId);
 }

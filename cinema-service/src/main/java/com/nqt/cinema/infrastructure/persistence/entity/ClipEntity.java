@@ -41,6 +41,9 @@ public class ClipEntity {
     @Column(length = 500)
     private String storagePath;
 
+    @Column(name = "file_size_bytes")
+    private Long fileSizeBytes;
+
     @Column(length = 1000)
     private String errorMessage;
 

@@ -27,6 +27,11 @@ public class UserGoal {
     private LocalDate startDate;
     private LocalDate endDate;
 
+    private Boolean isCustom;
+    private Boolean isPublic;
+    private String description;
+    private String authorName;
+
     /**
      * Ngày bắt đầu thật sự dùng để tính toán: ưu tiên startDate, rơi về createdAt (giờ VN)
      * cho các mục tiêu tạo trước khi có 2 cột startDate/endDate.

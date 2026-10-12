@@ -15,6 +15,11 @@ import com.nqt.cinema.usecase.dto.WeeksResponseDTO;
 import com.nqt.cinema.usecase.exception.CinemaBusinessException;
 import com.nqt.cinema.usecase.support.GoalResolver;
 import com.nqt.cinema.usecase.support.GoalWeekCalculator;
+import com.nqt.cinema.domain.ClipStatus;
+import com.nqt.cinema.domain.PhotoStorageSummary;
+import com.nqt.cinema.infrastructure.client.ShopSubscriptionClient;
+import com.nqt.cinema.usecase.boundary.ClipRepositoryGateway;
+import com.nqt.cinema.usecase.dto.CinemaStorageQuotaDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +40,8 @@ public class CinemaInteractor implements CinemaInputPort {
     private final CheckinGateway checkinGateway;
     private final GoalGateway goalGateway;
     private final GoalResolver goalResolver;
+    private final ClipRepositoryGateway clipRepository;
+    private final ShopSubscriptionClient shopSubscriptionClient;
     private final int minPhotos;
 
     public CinemaInteractor(CurrentUserProvider currentUserProvider,
@@ -42,12 +49,16 @@ public class CinemaInteractor implements CinemaInputPort {
                             CheckinGateway checkinGateway,
                             GoalGateway goalGateway,
                             GoalResolver goalResolver,
+                            ClipRepositoryGateway clipRepository,
+                            ShopSubscriptionClient shopSubscriptionClient,
                             @Value("${cinema.min-photos:3}") int minPhotos) {
         this.currentUserProvider = currentUserProvider;
         this.userServiceGateway = userServiceGateway;
         this.checkinGateway = checkinGateway;
         this.goalGateway = goalGateway;
         this.goalResolver = goalResolver;
+        this.clipRepository = clipRepository;
+        this.shopSubscriptionClient = shopSubscriptionClient;
         this.minPhotos = minPhotos;
     }
 
@@ -113,6 +124,52 @@ public class CinemaInteractor implements CinemaInputPort {
                 .toList();
 
         return new WeekPhotosResponseDTO(goal.id(), weekNumber, weekStart, weekEnd, photos);
+    }
+
+    @Override
+    public CinemaStorageQuotaDTO getStorageQuota() {
+        Long userId = resolveCurrentUserId();
+        PhotoStorageSummary photoSummary = checkinGateway.getPhotoStorageSummary(userId);
+        long usedVideosBytes = clipRepository.sumFileSizeBytesByUserId(userId);
+        long usedPhotosBytes = photoSummary.totalSizeBytes();
+        long totalUsedBytes = usedVideosBytes + usedPhotosBytes;
+
+        ShopSubscriptionClient.UserPlanDetails planDetails = shopSubscriptionClient.getUserSubscriptionDetails(userId);
+        long totalBytes = planDetails.storageQuotaBytes();
+        long totalClipsCount = clipRepository.countByUserIdAndStatus(userId, ClipStatus.COMPLETED);
+        long totalPhotosCount = photoSummary.photoCount();
+
+        double percentage = totalBytes > 0 ? Math.round((totalUsedBytes * 1000.0) / totalBytes) / 10.0 : 0.0;
+        if (percentage > 100.0) percentage = 100.0;
+
+        return new CinemaStorageQuotaDTO(
+                totalUsedBytes,
+                totalBytes,
+                usedVideosBytes,
+                usedPhotosBytes,
+                totalClipsCount,
+                totalPhotosCount,
+                planDetails.planCode(),
+                planDetails.planName(),
+                planDetails.hasActiveSubscription(),
+                percentage,
+                formatBytes(totalUsedBytes),
+                formatBytes(totalBytes)
+        );
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes <= 0) return "0 MB";
+        if (bytes < 1024 * 1024) {
+            double kb = bytes / 1024.0;
+            return String.format("%.1f KB", kb);
+        }
+        if (bytes < 1024 * 1024 * 1024L) {
+            double mb = bytes / (1024.0 * 1024.0);
+            return (mb >= 10.0) ? String.format("%.0f MB", mb) : String.format("%.1f MB", mb);
+        }
+        double gb = bytes / (1024.0 * 1024.0 * 1024.0);
+        return String.format("%.2f GB", gb);
     }
 
     private Long resolveCurrentUserId() {

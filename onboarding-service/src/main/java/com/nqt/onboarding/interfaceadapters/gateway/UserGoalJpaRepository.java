@@ -13,4 +13,6 @@ public interface UserGoalJpaRepository extends JpaRepository<UserGoalEntity, Lon
 
     // ➕ mới, phục vụ UserGoalRepositoryGateway.findAllByUserId
     List<UserGoalEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    List<UserGoalEntity> findByIsPublicTrueOrderByCreatedAtDesc();
 }
