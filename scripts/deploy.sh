@@ -80,6 +80,10 @@ else
     echo "--> Đã có sẵn eclipse-temurin:21-jre trên VPS."
 fi
 
+# Dọn dẹp các container bản V1 cũ (dùng tên pentava_ với dấu gạch dưới) tránh xung đột port
+echo "🧹 Dọn dẹp container V1 cũ để giải phóng cổng mạng..."
+docker rm -f $(docker ps -aq --filter "name=pentava_") 2>/dev/null || true
+
 echo "--> Đang sử dụng lệnh: $COMPOSE_CMD"
 $COMPOSE_CMD up -d --build --remove-orphans
 
