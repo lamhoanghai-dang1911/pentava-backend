@@ -35,23 +35,23 @@ git reset --hard origin/main
 # 3. Build & Khởi động lại các container
 echo "🚀 [3/5] Tiến hành build và chạy container..."
 
+# Đảm bảo có Docker Compose V2 hiện đại (loại bỏ hoàn toàn lỗi KeyError: 'ContainerConfig' của bản 1.29.2 cũ)
+if ! docker compose version >/dev/null 2>&1 && ( ! command -v docker-compose >/dev/null 2>&1 || docker-compose version 2>&1 | grep -q "version 1\." ); then
+    echo "⚠️ Đang nâng cấp Docker Compose lên V2 chính thức từ Docker..."
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    curl -sSL https://github.com/docker/compose/releases/download/v2.30.0/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/bin/docker-compose
+fi
+
 COMPOSE_CMD=""
 if docker compose version >/dev/null 2>&1; then
     COMPOSE_CMD="docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
     COMPOSE_CMD="docker-compose"
 else
-    echo "⚠️ Chưa có Docker Compose trên VPS, đang tự động cài đặt..."
-    apt-get update -y && (apt-get install -y docker-compose-plugin || apt-get install -y docker-compose)
-    if docker compose version >/dev/null 2>&1; then
-        COMPOSE_CMD="docker compose"
-    elif command -v docker-compose >/dev/null 2>&1; then
-        COMPOSE_CMD="docker-compose"
-    fi
-fi
-
-if [ -z "$COMPOSE_CMD" ]; then
-    echo "❌ LỖI: Không tìm thấy lệnh docker compose hoặc docker-compose!"
+    echo "❌ LỖI: Không khởi tạo được docker compose V2!"
     exit 1
 fi
 
