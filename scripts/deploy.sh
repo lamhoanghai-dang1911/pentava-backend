@@ -55,6 +55,15 @@ if [ -z "$COMPOSE_CMD" ]; then
     exit 1
 fi
 
+# Bật Docker BuildKit để build song song, tận dụng cache và giảm build context
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
+# Tải trước base image (có retry 3 lần) để tránh lỗi TLS handshake timeout khi mạng VPS chập chờn
+echo "📦 Tải trước base images (Maven & JRE)..."
+docker pull maven:3.9-eclipse-temurin-21 || (sleep 3 && docker pull maven:3.9-eclipse-temurin-21) || true
+docker pull eclipse-temurin:21-jre || (sleep 3 && docker pull eclipse-temurin:21-jre) || true
+
 echo "--> Đang sử dụng lệnh: $COMPOSE_CMD"
 $COMPOSE_CMD up -d --build --remove-orphans
 
