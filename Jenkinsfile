@@ -39,26 +39,35 @@ pipeline {
                 echo "🚀 [Step 2] Kết nối SSH vào VPS để kéo code, build và cập nhật hệ thống..."
                 // Yêu cầu Jenkins cài đặt plugin: "SSH Agent"
                 sshagent(credentials: [env.SSH_CREDENTIAL_ID]) {
-                    sh '''
-                        # Bỏ qua kiểm tra StrictHostKeyChecking để tránh dừng pipeline vì prompt xác nhận fingerprint
-                        SSH_CMD="ssh -o StrictHostKeyChecking=no -p ${VPS_PORT} ${VPS_USER}@${VPS_HOST}"
+                    withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                        sh '''
+                            # Bỏ qua kiểm tra StrictHostKeyChecking để tránh dừng pipeline vì prompt xác nhận fingerprint
+                            SSH_CMD="ssh -o StrictHostKeyChecking=no -p ${VPS_PORT} ${VPS_USER}@${VPS_HOST}"
 
-                        echo "--> Kiểm tra và khởi tạo thư mục dự án trên VPS..."
-                        $SSH_CMD "
-                            if [ ! -d '${VPS_DEPLOY_PATH}/.git' ]; then
-                                echo 'Thư mục chưa có git repo, tiến hành clone...'
+                            echo "--> Đồng bộ mã nguồn trên VPS..."
+                            $SSH_CMD "
                                 mkdir -p '${VPS_DEPLOY_PATH}'
-                                git clone ${GIT_REPO_URL} '${VPS_DEPLOY_PATH}'
-                            fi
-                        "
+                                cd '${VPS_DEPLOY_PATH}'
 
-                        echo "--> Chạy script cập nhật, build Docker và làm sạch trên VPS..."
-                        $SSH_CMD "
-                            cd '${VPS_DEPLOY_PATH}'
-                            chmod +x scripts/deploy.sh
-                            ./scripts/deploy.sh
-                        "
-                    '''
+                                # Nếu chưa có repo git thì init
+                                if [ ! -d .git ]; then
+                                    echo 'Khởi tạo Git repo trong thư mục...'
+                                    git init
+                                    git remote add origin https://${GH_TOKEN}@github.com/lamhoanghai-dang1911/pentava-backend.git
+                                else
+                                    git remote set-url origin https://${GH_TOKEN}@github.com/lamhoanghai-dang1911/pentava-backend.git
+                                fi
+
+                                echo 'Cập nhật mã nguồn mới nhất...'
+                                git fetch origin main
+                                git reset --hard origin/main
+
+                                echo 'Cấp quyền và chạy script deploy...'
+                                chmod +x scripts/deploy.sh
+                                ./scripts/deploy.sh
+                            "
+                        '''
+                    }
                 }
             }
         }

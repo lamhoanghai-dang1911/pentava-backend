@@ -15,11 +15,16 @@ echo " Thư mục: $PROJECT_DIR"
 echo " Thời gian: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "=========================================================="
 
-# 1. Kiểm tra file .env
+# 1. Kiểm tra file .env (tự động tạo từ .env.example nếu chưa có)
 if [ ! -f .env ]; then
-    echo "❌ LỖI: File .env không tồn tại tại $PROJECT_DIR!"
-    echo "👉 Vui lòng tạo file .env từ .env.example trước khi deploy."
-    exit 1
+    if [ -f .env.example ]; then
+        echo "⚠️ Không tìm thấy file .env, tự động sao chép từ .env.example..."
+        cp .env.example .env
+    else
+        echo "❌ LỖI: File .env không tồn tại tại $PROJECT_DIR!"
+        echo "👉 Vui lòng tạo file .env từ .env.example trước khi deploy."
+        exit 1
+    fi
 fi
 
 # 2. Cập nhật code mới nhất từ git branch main
