@@ -84,26 +84,39 @@ public class FfmpegVideoRenderAdapter implements VideoRenderGateway {
     }
 
     private List<File> downloadImages(List<ClipPhotoRef> photos, Path workDir) throws Exception {
-        List<File> files = new ArrayList<>();
+        List<java.util.concurrent.CompletableFuture<File>> futures = new ArrayList<>();
         for (int i = 0; i < photos.size(); i++) {
-            String url = photos.get(i).imageUrl();
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                    .timeout(Duration.ofSeconds(DOWNLOAD_TIMEOUT_SECONDS))
-                    .GET()
-                    .build();
+            final int index = i;
+            final String url = photos.get(i).imageUrl();
+            futures.add(java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try {
+                    HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                            .timeout(Duration.ofSeconds(DOWNLOAD_TIMEOUT_SECONDS))
+                            .GET()
+                            .build();
 
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() != 200) {
-                throw new RuntimeException("Không tải được ảnh (HTTP " + response.statusCode() + "): " + url);
-            }
-            byte[] body = response.body();
-            if (body.length == 0 || body.length > MAX_IMAGE_BYTES) {
-                throw new RuntimeException("Ảnh không hợp lệ hoặc quá lớn: " + url);
-            }
+                    HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                    if (response.statusCode() != 200) {
+                        throw new RuntimeException("Không tải được ảnh (HTTP " + response.statusCode() + "): " + url);
+                    }
+                    byte[] body = response.body();
+                    if (body.length == 0 || body.length > MAX_IMAGE_BYTES) {
+                        throw new RuntimeException("Ảnh không hợp lệ hoặc quá lớn: " + url);
+                    }
 
-            File imgFile = workDir.resolve("img_" + i + ".jpg").toFile();
-            Files.write(imgFile.toPath(), body);
-            files.add(imgFile);
+                    File imgFile = workDir.resolve("img_" + index + ".jpg").toFile();
+                    Files.write(imgFile.toPath(), body);
+                    return imgFile;
+                } catch (Exception e) {
+                    throw new RuntimeException("Tải ảnh thất bại: " + url, e);
+                }
+            }));
+        }
+
+        java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+        List<File> files = new ArrayList<>();
+        for (java.util.concurrent.CompletableFuture<File> future : futures) {
+            files.add(future.get());
         }
         return files;
     }
@@ -126,6 +139,9 @@ public class FfmpegVideoRenderAdapter implements VideoRenderGateway {
         cmd.add("-r"); cmd.add(String.valueOf(FPS));
         cmd.add("-pix_fmt"); cmd.add("yuv420p");
         cmd.add("-c:v"); cmd.add("libx264");
+        cmd.add("-preset"); cmd.add("veryfast");
+        cmd.add("-crf"); cmd.add("20");
+        cmd.add("-threads"); cmd.add("0");
         cmd.add("-movflags"); cmd.add("+faststart");
         cmd.add("-an");
         cmd.add(output.getAbsolutePath());
@@ -136,14 +152,13 @@ public class FfmpegVideoRenderAdapter implements VideoRenderGateway {
     private String buildFilterComplex(int n, List<ClipPhotoRef> photos) {
         StringBuilder sb = new StringBuilder();
 
-        // Mỗi ảnh: nền mờ phủ kín khung (không crop ảnh gốc) + ảnh gốc canh giữa + nhãn ngày
+        // Mỗi ảnh: nền mờ phủ kín khung (hạ độ phân giải trước khi blur để tăng tốc độ 50x) + ảnh gốc canh giữa + nhãn ngày
         for (int i = 0; i < n; i++) {
             String label = escapeDrawtext(dateLabel(photos.get(i).checkinDate()));
 
             sb.append("[").append(i).append(":v]split=2[base").append(i).append("a][base").append(i).append("b];");
-            sb.append("[base").append(i).append("a]scale=").append(WIDTH).append(":").append(HEIGHT)
-                    .append(":force_original_aspect_ratio=increase,crop=").append(WIDTH).append(":").append(HEIGHT)
-                    .append(",gblur=sigma=20,setsar=1[bg").append(i).append("];");
+            sb.append("[base").append(i).append("a]scale=108:192:force_original_aspect_ratio=increase,crop=108:192")
+                    .append(",boxblur=5:5,scale=").append(WIDTH).append(":").append(HEIGHT).append(",setsar=1[bg").append(i).append("];");
             sb.append("[base").append(i).append("b]scale=").append(WIDTH).append(":").append(HEIGHT)
                     .append(":force_original_aspect_ratio=decrease,setsar=1[fg").append(i).append("];");
             sb.append("[bg").append(i).append("][fg").append(i).append("]overlay=(W-w)/2:(H-h)/2[comp").append(i).append("];");

@@ -48,20 +48,23 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
         String itemBackgroundUrl = getItemBackgroundUrl();
 
         return items.stream()
-                .map(item -> ShopItemResponseDTO.builder()
-                        .id(item.getId())
-                        .skinItemId(item.getSkinItemId())
-                        .code(item.getCode())
-                        .name(item.getName())
-                        .slot(item.getSlot())
-                        .priceRuby(item.getPriceRuby())
-                        .imageUrl(item.getImageUrl())
-                        .itemBackgroundUrl(itemBackgroundUrl)
-                        .thumbnailUrl(item.getThumbnailUrl())
-                        .thumbnailLayers(buildThumbnailLayers(item.getThumbnailUrl()))
-                        .description(item.getDescription())
-                        .isOwned(ownedSkinIds.contains(item.getSkinItemId()))
-                        .build())
+                .map(item -> {
+                    String thumbnailUrl = resolveThumbnailUrl(item);
+                    return ShopItemResponseDTO.builder()
+                            .id(item.getId())
+                            .skinItemId(item.getSkinItemId())
+                            .code(item.getCode())
+                            .name(item.getName())
+                            .slot(item.getSlot())
+                            .priceRuby(item.getPriceRuby())
+                            .imageUrl(item.getImageUrl())
+                            .itemBackgroundUrl(itemBackgroundUrl)
+                            .thumbnailUrl(thumbnailUrl)
+                            .thumbnailLayers(buildThumbnailLayers(thumbnailUrl))
+                            .description(item.getDescription())
+                            .isOwned(ownedSkinIds.contains(item.getSkinItemId()))
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 
@@ -72,17 +75,31 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
         String itemBackgroundUrl = getItemBackgroundUrl();
 
         return items.stream()
-                .map(item -> ShopThumbnailResponseDTO.builder()
-                        .shopItemId(item.getId())
-                        .skinItemId(item.getSkinItemId())
-                        .code(item.getCode())
-                        .name(item.getName())
-                        .slot(item.getSlot())
-                        .itemBackgroundUrl(itemBackgroundUrl)
-                        .thumbnailUrl(item.getThumbnailUrl())
-                        .thumbnailLayers(buildThumbnailLayers(item.getThumbnailUrl()))
-                        .build())
+                .map(item -> {
+                    String thumbnailUrl = resolveThumbnailUrl(item);
+                    return ShopThumbnailResponseDTO.builder()
+                            .shopItemId(item.getId())
+                            .skinItemId(item.getSkinItemId())
+                            .code(item.getCode())
+                            .name(item.getName())
+                            .slot(item.getSlot())
+                            .itemBackgroundUrl(itemBackgroundUrl)
+                            .thumbnailUrl(thumbnailUrl)
+                            .thumbnailLayers(buildThumbnailLayers(thumbnailUrl))
+                            .build();
+                })
                 .collect(Collectors.toList());
+    }
+
+    private String resolveThumbnailUrl(ShopItemEntity item) {
+        String url = item.getThumbnailUrl();
+        if (url != null && url.contains("crown_background.png")) {
+            return url.replace("crown_background.png", "crown_background_replace.png");
+        }
+        if ("crown".equalsIgnoreCase(item.getCode()) && (url == null || url.isBlank())) {
+            return supabaseUrl.replaceAll("/+$", "") + "/storage/v1/object/public/" + thumbnailBucket + "/crown_background_replace.png";
+        }
+        return url;
     }
 
     private String getItemBackgroundUrl() {

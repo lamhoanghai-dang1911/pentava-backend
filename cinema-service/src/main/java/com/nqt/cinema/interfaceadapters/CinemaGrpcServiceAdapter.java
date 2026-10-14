@@ -27,7 +27,7 @@ public class CinemaGrpcServiceAdapter extends CinemaGrpcServiceGrpc.CinemaGrpcSe
     public CinemaGrpcServiceAdapter(
             ClipRepositoryGateway clipRepositoryGateway,
             VideoStorageGateway videoStorageGateway,
-            @Value("${cinema.render.signed-url-expiry-seconds:21600}") long signedUrlExpirySeconds) {
+            @Value("${cinema.render.social-signed-url-expiry-seconds:315360000}") long signedUrlExpirySeconds) {
         this.clipRepositoryGateway = clipRepositoryGateway;
         this.videoStorageGateway = videoStorageGateway;
         this.signedUrlExpirySeconds = signedUrlExpirySeconds;

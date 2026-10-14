@@ -235,8 +235,15 @@ public class ClipInteractor implements ClipInputPort {
     }
 
     private ClipDTO toDto(Clip clip, String videoUrl) {
+        String errorMsg = clip.errorMessage();
+        if (errorMsg != null && (errorMsg.toLowerCase().contains("ffmpeg")
+                || errorMsg.toLowerCase().contains("cannot run program")
+                || errorMsg.contains("error=2")
+                || errorMsg.contains("No such file"))) {
+            errorMsg = "Quá trình tạo video trước đây bị gián đoạn. Bạn có thể xóa để tạo lại.";
+        }
         return new ClipDTO(clip.id(), clip.goalId(), clip.weekNumber(), clip.status().name(),
-                videoUrl, clip.errorMessage(), clip.photos().size(), clip.createdAt());
+                videoUrl, errorMsg, clip.photos().size(), clip.createdAt());
     }
 
     private Long resolveCurrentUserId() {

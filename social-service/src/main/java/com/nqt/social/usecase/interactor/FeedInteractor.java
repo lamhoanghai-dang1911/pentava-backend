@@ -21,18 +21,21 @@ public class FeedInteractor implements FeedInputPort {
     private final FriendshipRepositoryGateway friendshipRepositoryGateway;
     private final AuthServiceGateway authServiceGateway;
     private final FeedRecommendationEngine recommendationEngine;
+    private final CinemaServiceGateway cinemaServiceGateway;
 
     public FeedInteractor(
             PostRepositoryGateway postRepositoryGateway,
             HighFiveRepositoryGateway highFiveRepositoryGateway,
             FriendshipRepositoryGateway friendshipRepositoryGateway,
             AuthServiceGateway authServiceGateway,
-            FeedRecommendationEngine recommendationEngine) {
+            FeedRecommendationEngine recommendationEngine,
+            CinemaServiceGateway cinemaServiceGateway) {
         this.postRepositoryGateway = postRepositoryGateway;
         this.highFiveRepositoryGateway = highFiveRepositoryGateway;
         this.friendshipRepositoryGateway = friendshipRepositoryGateway;
         this.authServiceGateway = authServiceGateway;
         this.recommendationEngine = recommendationEngine;
+        this.cinemaServiceGateway = cinemaServiceGateway;
     }
 
     @Override
@@ -191,6 +194,7 @@ public class FeedInteractor implements FeedInputPort {
         return posts.stream()
                 .map(p -> {
                     AuthServiceGateway.UserSocialInfo author = userCache.get(p.getUserId());
+                    String validVideoUrl = resolvePostVideoUrl(p);
                     return PostResponseDTO.builder()
                             .id(p.getId())
                             .userId(p.getUserId())
@@ -199,7 +203,7 @@ public class FeedInteractor implements FeedInputPort {
                             .clipId(p.getClipId())
                             .goalId(p.getGoalId())
                             .weekNumber(p.getWeekNumber())
-                            .videoUrl(p.getVideoUrl())
+                            .videoUrl(validVideoUrl)
                             .caption(p.getCaption())
                             .tags(p.getTags())
                             .privacyMode(p.getPrivacyMode())
@@ -211,5 +215,48 @@ public class FeedInteractor implements FeedInputPort {
                             .build();
                 })
                 .toList();
+    }
+
+    private String resolvePostVideoUrl(Post post) {
+        String currentUrl = post.getVideoUrl();
+        if (!isUrlExpired(currentUrl)) {
+            return currentUrl;
+        }
+        if (post.getClipId() != null && post.getUserId() != null) {
+            try {
+                var clipOpt = cinemaServiceGateway.getClipForSocial(post.getClipId(), post.getUserId());
+                if (clipOpt.isPresent() && clipOpt.get().videoUrl() != null && !clipOpt.get().videoUrl().isBlank()) {
+                    String freshUrl = clipOpt.get().videoUrl();
+                    post.setVideoUrl(freshUrl);
+                    postRepositoryGateway.save(post);
+                    return freshUrl;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return currentUrl;
+    }
+
+    private boolean isUrlExpired(String url) {
+        if (url == null || url.isBlank()) return true;
+        int tokenIdx = url.indexOf("token=");
+        if (tokenIdx != -1) {
+            String token = url.substring(tokenIdx + 6);
+            int ampIdx = token.indexOf("&");
+            if (ampIdx != -1) token = token.substring(0, ampIdx);
+            try {
+                String[] parts = token.split("\\.");
+                if (parts.length >= 2) {
+                    String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"exp\"\\s*:\\s*(\\d+)").matcher(payload);
+                    if (m.find()) {
+                        long exp = Long.parseLong(m.group(1));
+                        return (System.currentTimeMillis() / 1000) >= (exp - 120);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return false;
     }
 }

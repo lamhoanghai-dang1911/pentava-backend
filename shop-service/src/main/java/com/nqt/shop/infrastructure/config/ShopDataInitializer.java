@@ -36,7 +36,13 @@ public class ShopDataInitializer implements CommandLineRunner {
             List<ShopItemEntity> existingItems = shopItemRepository.findAll();
             boolean updated = false;
             for (ShopItemEntity item : existingItems) {
-                if (item.getThumbnailUrl() == null || item.getThumbnailUrl().isBlank()) {
+                if ("crown".equalsIgnoreCase(item.getCode())) {
+                    String correctCrownThumbnail = thumbnailBaseUrl + "crown_background_replace.png";
+                    if (!correctCrownThumbnail.equals(item.getThumbnailUrl())) {
+                        item.setThumbnailUrl(correctCrownThumbnail);
+                        updated = true;
+                    }
+                } else if (item.getThumbnailUrl() == null || item.getThumbnailUrl().isBlank()) {
                     item.setThumbnailUrl(thumbnailBaseUrl + item.getCode() + "_background.png");
                     updated = true;
                 }
@@ -107,7 +113,7 @@ public class ShopDataInitializer implements CommandLineRunner {
                         .slot("HEAD")
                         .priceRuby(60)
                         .imageUrl(baseUrl + "crown.png")
-                        .thumbnailUrl(thumbnailBaseUrl + "crown_background.png")
+                        .thumbnailUrl(thumbnailBaseUrl + "crown_background_replace.png")
                         .description("Vương miện vàng quyền quý dành cho quý tộc mèo")
                         .isForSale(true)
                         .build(),

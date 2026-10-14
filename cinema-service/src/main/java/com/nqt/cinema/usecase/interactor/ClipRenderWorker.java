@@ -23,7 +23,6 @@ public class ClipRenderWorker {
     private final VideoStorageGateway videoStorageGateway;
 
     @Async("clipRenderExecutor")
-    @Transactional
     public void renderAsync(Long clipId) {
 
         try {

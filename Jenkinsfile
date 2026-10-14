@@ -14,7 +14,7 @@ pipeline {
         SSH_CREDENTIAL_ID = 'pentava-vps-ssh-key'
 
         // Cấu hình thông tin máy chủ VPS của bạn
-        VPS_HOST          = 'YOUR_VPS_IP'       // Thay bằng IP máy chủ VPS của bạn
+        VPS_HOST          = '42.96.2.76'        // IP máy chủ VPS
         VPS_USER          = 'root'              // User SSH (thường là root hoặc ubuntu)
         VPS_PORT          = '22'                // Cổng SSH của VPS
         VPS_DEPLOY_PATH   = '/opt/pentava'      // Thư mục lưu mã nguồn backend trên VPS
