@@ -54,4 +54,9 @@ public class TaskProgressRepositoryGatewayImpl implements TaskProgressRepository
     public List<Long> findDistinctCompletedTaskIdsByUserId(Long userId) {
         return jpaRepository.findDistinctCompletedTaskIdsByUserId(userId);
     }
+
+    @Override
+    public List<LocalDate> findDistinctTaskDatesBeforeDate(Long userId, LocalDate date) {
+        return jpaRepository.findDistinctTaskDatesBeforeDate(userId, date);
+    }
 }

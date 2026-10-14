@@ -124,8 +124,10 @@ public class TaskController {
 
     // Sao chép một lộ trình công khai làm lộ trình của mình
     @PostMapping("/goals/public/{publicGoalId}/clone")
-    public ResponseEntity<?> clonePublicGoal(@PathVariable("publicGoalId") Long publicGoalId) {
-        inputPort.clonePublicGoal(publicGoalId);
+    public ResponseEntity<?> clonePublicGoal(
+            @PathVariable("publicGoalId") Long publicGoalId,
+            @RequestParam(value = "applyMode", required = false, defaultValue = "REPLACE_NOW") String applyMode) {
+        inputPort.clonePublicGoal(publicGoalId, applyMode);
         return presenter.getResponseEntity();
     }
 }

@@ -17,4 +17,7 @@ public class PublicGoalSummaryDTO {
     private String authorName;
     private LocalDateTime createdAt;
     private List<CustomWeekDTO> weeks;
+    private List<CustomTaskItemDTO> badTasks;
+    private List<CustomTaskItemDTO> neutralTasks;
+    private List<CustomTaskItemDTO> goodTasks;
 }

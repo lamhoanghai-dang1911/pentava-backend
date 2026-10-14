@@ -184,14 +184,8 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
     }
 
     private void initDefaultMappings() {
-        if (mappingRepository.count() > 0) {
-            log.info("Cấu hình mapping tính năng gói cước đã tồn tại, giữ nguyên cấu hình hiện tại.");
-            return;
-        }
-
         List<SubscriptionPlanEntity> plans = planRepository.findAll();
         List<SubscriptionFeatureEntity> features = featureRepository.findAll();
-
         LocalDateTime now = LocalDateTime.now();
 
         for (SubscriptionPlanEntity plan : plans) {
@@ -200,14 +194,16 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                 String paramVal = feature.getDefaultValue();
                 String displayLabel = feature.getName();
 
-                // Cấu hình ban đầu dạng Modular (Admin có thể tùy ý sửa đổi qua giao diện bất
-                // cứ lúc nào)
                 switch (plan.getCode().toUpperCase()) {
                     case "BASIC":
                         if ("STORAGE_EXPANSION".equalsIgnoreCase(feature.getFeatureCode())) {
                             enabled = true;
                             paramVal = "5GB";
                             displayLabel = "Tăng thêm 5GB lưu trữ hình ảnh & video Penta-Cinema";
+                        } else if ("STREAK_PROTECTION".equalsIgnoreCase(feature.getFeatureCode())) {
+                            enabled = true;
+                            paramVal = "1";
+                            displayLabel = "Đóng băng tiến trình (Streak Protection) 1 lần/tháng cho những ngày bận rộn";
                         } else if ("RUBY_BONUS".equalsIgnoreCase(feature.getFeatureCode())) {
                             enabled = true;
                             paramVal = "20";
@@ -224,6 +220,10 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                             enabled = true;
                             paramVal = "true";
                             displayLabel = "Tự do thiết kế lộ trình phát triển và công khai (public) ra cộng đồng";
+                        } else if ("STORAGE_EXPANSION".equalsIgnoreCase(feature.getFeatureCode())) {
+                            enabled = true;
+                            paramVal = "15GB";
+                            displayLabel = "Tăng thêm 15GB lưu trữ hình ảnh & video Penta-Cinema";
                         } else if ("RUBY_BONUS".equalsIgnoreCase(feature.getFeatureCode())) {
                             enabled = true;
                             paramVal = "50";
@@ -232,7 +232,15 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                         break;
 
                     case "PREMIUM":
-                        if ("MULTI_ANGLE_TEMPLATES".equalsIgnoreCase(feature.getFeatureCode())) {
+                        if ("STREAK_PROTECTION".equalsIgnoreCase(feature.getFeatureCode())) {
+                            enabled = true;
+                            paramVal = "3";
+                            displayLabel = "Đóng băng tiến trình (Streak Protection) 3 lần/tháng cho những ngày bận rộn";
+                        } else if ("CUSTOM_ROADMAP".equalsIgnoreCase(feature.getFeatureCode())) {
+                            enabled = true;
+                            paramVal = "true";
+                            displayLabel = "Tự do thiết kế lộ trình phát triển và công khai (public) ra cộng đồng";
+                        } else if ("MULTI_ANGLE_TEMPLATES".equalsIgnoreCase(feature.getFeatureCode())) {
                             enabled = true;
                             paramVal = "true";
                             displayLabel = "Mở khóa mẫu video Multi-Angle & Dynamic Templates ghép nhiều hành trình";
@@ -252,19 +260,30 @@ public class SubscriptionDataInitializer implements CommandLineRunner {
                         break;
                 }
 
-                PlanFeatureMappingEntity mapping = PlanFeatureMappingEntity.builder()
-                        .plan(plan)
-                        .feature(feature)
-                        .isEnabled(enabled)
-                        .paramValue(paramVal)
-                        .displayLabel(displayLabel)
-                        .updatedAt(now)
-                        .build();
-
-                mappingRepository.save(mapping);
+                var existingOpt = mappingRepository.findByPlanIdAndFeatureFeatureCodeIgnoreCase(plan.getId(), feature.getFeatureCode());
+                if (existingOpt.isPresent()) {
+                    var mapping = existingOpt.get();
+                    if (!mapping.isEnabled() && enabled) {
+                        mapping.setEnabled(true);
+                        mapping.setParamValue(paramVal);
+                        mapping.setDisplayLabel(displayLabel);
+                        mapping.setUpdatedAt(now);
+                        mappingRepository.save(mapping);
+                    }
+                } else {
+                    PlanFeatureMappingEntity mapping = PlanFeatureMappingEntity.builder()
+                            .plan(plan)
+                            .feature(feature)
+                            .isEnabled(enabled)
+                            .paramValue(paramVal)
+                            .displayLabel(displayLabel)
+                            .updatedAt(now)
+                            .build();
+                    mappingRepository.save(mapping);
+                }
             }
         }
 
-        log.info("Đã khởi tạo thành công ma trận tính năng mặc định cho các gói cước.");
+        log.info("Đã đồng bộ thành công ma trận tính năng mặc định cho các gói cước.");
     }
 }

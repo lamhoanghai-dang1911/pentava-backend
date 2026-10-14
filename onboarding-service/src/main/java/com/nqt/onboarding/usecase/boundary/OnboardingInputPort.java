@@ -29,6 +29,7 @@ public interface OnboardingInputPort {
     void updateGoalVisibility(Long goalId, UpdateGoalVisibilityRequestDTO requestDTO);
     void getPublicGoals();
     void clonePublicGoal(Long publicGoalId);
+    void clonePublicGoal(Long publicGoalId, String applyMode);
 
     // ➕ Khảo sát đầu ra & Báo cáo chuyển hóa
     void getGoalAssessmentContext(Long goalId);

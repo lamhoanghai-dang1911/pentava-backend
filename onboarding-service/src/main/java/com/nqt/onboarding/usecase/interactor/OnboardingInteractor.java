@@ -275,18 +275,57 @@ public class OnboardingInteractor implements OnboardingInputPort {
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
 
-        requireActiveGoal(userId, goalId);
+        UserGoal goal = requireActiveGoal(userId, goalId);
 
         LocalDate today = today();
         LocalDate yesterday = today.minusDays(1);
 
         List<TaskProgressEntity> todayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, today);
-        boolean hasConfirmedToday = todayProgress.size() == REQUIRED_DAILY_TASKS;
-        List<TaskResponseDTO> todayTasks = hasConfirmedToday ? buildOrderedTaskDTOs(todayProgress) : List.of();
+        List<TaskResponseDTO> allTodayTasks = buildOrderedTaskDTOs(todayProgress);
+        List<TaskResponseDTO> todayTasksForGoal = allTodayTasks.stream()
+                .filter(t -> goalId.equals(t.getGoalId()))
+                .toList();
 
-        List<TaskProgressEntity> yesterdayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, yesterday);
-        boolean hasYesterdayTasks = !yesterdayProgress.isEmpty();
-        List<TaskResponseDTO> yesterdayTasks = buildOrderedTaskDTOs(yesterdayProgress);
+        boolean hasConfirmedToday = todayTasksForGoal.size() == REQUIRED_DAILY_TASKS;
+        List<TaskResponseDTO> todayTasks = hasConfirmedToday ? todayTasksForGoal : List.of();
+
+        List<TaskResponseDTO> yesterdayTasks = List.of();
+        boolean hasYesterdayTasks = false;
+
+        LocalDate goalStart = goal.getStartDate() != null ? goal.getStartDate()
+                : (goal.getCreatedAt() != null ? goal.getCreatedAt().toLocalDate() : today);
+
+        // Chỉ có thể có "nhiệm vụ hôm qua / nhiệm vụ cũ" nếu mục tiêu này đã bắt đầu trước hôm nay (tức là goalStart <= yesterday)
+        if (!goalStart.isAfter(yesterday)) {
+            // 1. Kiểm tra ngày hôm qua trước
+            List<TaskProgressEntity> yesterdayProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, yesterday);
+            List<TaskResponseDTO> allYesterdayTasks = buildOrderedTaskDTOs(yesterdayProgress);
+            List<TaskResponseDTO> yesterdayTasksForGoal = allYesterdayTasks.stream()
+                    .filter(t -> goalId.equals(t.getGoalId()))
+                    .toList();
+
+            if (yesterdayTasksForGoal.size() == REQUIRED_DAILY_TASKS) {
+                yesterdayTasks = yesterdayTasksForGoal;
+                hasYesterdayTasks = true;
+            } else {
+                // 2. Nếu hôm qua không làm task / không đủ 5 task -> Lấy task của ngày gần nhất trước hôm nay
+                List<LocalDate> pastDates = taskProgressRepository.findDistinctTaskDatesBeforeDate(userId, today);
+                for (LocalDate pastDate : pastDates) {
+                    if (pastDate.equals(yesterday)) continue; // đã kiểm tra ở trên
+                    List<TaskProgressEntity> pastProgress = taskProgressRepository.findByUserIdAndTaskDate(userId, pastDate);
+                    List<TaskResponseDTO> allPastTasks = buildOrderedTaskDTOs(pastProgress);
+                    List<TaskResponseDTO> pastTasksForGoal = allPastTasks.stream()
+                            .filter(t -> goalId.equals(t.getGoalId()))
+                            .toList();
+
+                    if (pastTasksForGoal.size() == REQUIRED_DAILY_TASKS) {
+                        yesterdayTasks = pastTasksForGoal;
+                        hasYesterdayTasks = true;
+                        break;
+                    }
+                }
+            }
+        }
 
         outputPort.present(OnboardingResponseDTO.builder()
                 .message("Lấy trạng thái nhiệm vụ trong ngày thành công")
@@ -386,16 +425,19 @@ public class OnboardingInteractor implements OnboardingInputPort {
         // Chưa confirm đủ 5 -> trả pool để user chọn (hỗ trợ cả lộ trình tự thiết kế)
         List<TaskEntity> pool;
         if (Boolean.TRUE.equals(goal.getIsCustom())) {
-            int currentWeek = 1;
-            if (goal.getStartDate() != null) {
-                long days = java.time.temporal.ChronoUnit.DAYS.between(goal.getStartDate(), today);
-                currentWeek = (int) (days / 7) + 1;
-                if (currentWeek < 1) currentWeek = 1;
-                if (currentWeek > 4) currentWeek = 4;
-            }
-            pool = taskRepository.findTasksForGoalAndWeek(goal.getId(), currentWeek);
+            pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), mood);
             if (pool.isEmpty()) {
-                pool = taskRepository.findAllByGoalId(goal.getId());
+                int currentWeek = 1;
+                if (goal.getStartDate() != null) {
+                    long days = java.time.temporal.ChronoUnit.DAYS.between(goal.getStartDate(), today);
+                    currentWeek = (int) (days / 7) + 1;
+                    if (currentWeek < 1) currentWeek = 1;
+                    if (currentWeek > 4) currentWeek = 4;
+                }
+                pool = taskRepository.findTasksForGoalAndWeek(goal.getId(), currentWeek);
+                if (pool.isEmpty()) {
+                    pool = taskRepository.findAllByGoalId(goal.getId());
+                }
             }
         } else {
             pool = taskRepository.findByUserIdAndGoalIdAndMoodType(userId, goal.getId(), mood);
@@ -486,6 +528,7 @@ public class OnboardingInteractor implements OnboardingInputPort {
     private TaskResponseDTO toTaskResponseDTO(TaskEntity entity) {
         return TaskResponseDTO.builder()
                 .id(entity.getId())
+                .goalId(entity.getGoalId())
                 .title(entity.getTitle())
                 .content(entity.getContent())
                 .weekNumber(entity.getWeekNumber())
@@ -1039,29 +1082,31 @@ public class OnboardingInteractor implements OnboardingInputPort {
         customGoal = goalRepository.save(customGoal);
         Long goalId = customGoal.getId();
 
-        // 5. Lưu các task tự thiết kế theo từng tuần
+        // 5. Lưu các task tự thiết kế (ưu tiên 3 Mood: BAD, NEUTRAL, GOOD; hoặc fallback theo tuần)
         List<TaskEntity> tasksToSave = new ArrayList<>();
+
+        if (requestDTO.getBadTasks() != null) {
+            for (CustomTaskItemDTO item : requestDTO.getBadTasks()) {
+                addCustomTaskIfValid(tasksToSave, userId, goalId, requestDTO.getGoalName(), 1, MoodType.BAD, item);
+            }
+        }
+        if (requestDTO.getNeutralTasks() != null) {
+            for (CustomTaskItemDTO item : requestDTO.getNeutralTasks()) {
+                addCustomTaskIfValid(tasksToSave, userId, goalId, requestDTO.getGoalName(), 1, MoodType.NEUTRAL, item);
+            }
+        }
+        if (requestDTO.getGoodTasks() != null) {
+            for (CustomTaskItemDTO item : requestDTO.getGoodTasks()) {
+                addCustomTaskIfValid(tasksToSave, userId, goalId, requestDTO.getGoalName(), 1, MoodType.GOOD, item);
+            }
+        }
+
         if (requestDTO.getWeeks() != null) {
             for (CustomWeekDTO weekDTO : requestDTO.getWeeks()) {
                 int weekNumber = weekDTO.getWeekNumber() != null ? weekDTO.getWeekNumber() : 1;
                 if (weekDTO.getTasks() != null) {
                     for (CustomTaskItemDTO item : weekDTO.getTasks()) {
-                        String title = item.getTitle() != null ? item.getTitle().trim() : "";
-                        String content = (item.getContent() != null && !item.getContent().isBlank())
-                                ? item.getContent().trim()
-                                : title;
-                        TaskEntity task = TaskEntity.builder()
-                                .userId(userId)
-                                .goalId(goalId)
-                                .goalName(requestDTO.getGoalName().trim())
-                                .weekNumber(weekNumber)
-                                .moodType(MoodType.CUSTOM)
-                                .title(title)
-                                .content(content)
-                                .isAiGenerated(false)
-                                .isCompleted(false)
-                                .build();
-                        tasksToSave.add(task);
+                        addCustomTaskIfValid(tasksToSave, userId, goalId, requestDTO.getGoalName(), weekNumber, MoodType.CUSTOM, item);
                     }
                 }
             }
@@ -1139,6 +1184,19 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 }
             }
 
+            List<CustomTaskItemDTO> badTasks = tasks.stream()
+                    .filter(t -> t.getMoodType() == MoodType.BAD)
+                    .map(t -> CustomTaskItemDTO.builder().title(t.getTitle()).content(t.getContent()).sourceTaskId(t.getId()).build())
+                    .toList();
+            List<CustomTaskItemDTO> neutralTasks = tasks.stream()
+                    .filter(t -> t.getMoodType() == MoodType.NEUTRAL)
+                    .map(t -> CustomTaskItemDTO.builder().title(t.getTitle()).content(t.getContent()).sourceTaskId(t.getId()).build())
+                    .toList();
+            List<CustomTaskItemDTO> goodTasks = tasks.stream()
+                    .filter(t -> t.getMoodType() == MoodType.GOOD)
+                    .map(t -> CustomTaskItemDTO.builder().title(t.getTitle()).content(t.getContent()).sourceTaskId(t.getId()).build())
+                    .toList();
+
             responseList.add(PublicGoalSummaryDTO.builder()
                     .goalId(g.getId())
                     .goalName(g.getGoalName())
@@ -1146,6 +1204,9 @@ public class OnboardingInteractor implements OnboardingInputPort {
                     .authorName(g.getAuthorName() != null ? g.getAuthorName() : "Pentava User")
                     .createdAt(g.getCreatedAt())
                     .weeks(weekDTOs)
+                    .badTasks(badTasks)
+                    .neutralTasks(neutralTasks)
+                    .goodTasks(goodTasks)
                     .build());
         }
 
@@ -1158,6 +1219,12 @@ public class OnboardingInteractor implements OnboardingInputPort {
     @Override
     @Transactional
     public void clonePublicGoal(Long publicGoalId) {
+        clonePublicGoal(publicGoalId, "REPLACE_NOW");
+    }
+
+    @Override
+    @Transactional
+    public void clonePublicGoal(Long publicGoalId, String applyMode) {
         String email = currentUserProvider.getCurrentUserEmail();
         Long userId = userServiceGateway.getUserIdByEmail(email)
                 .orElseThrow(() -> new BusinessException("User không tồn tại: " + email));
@@ -1174,12 +1241,16 @@ public class OnboardingInteractor implements OnboardingInputPort {
             throw new BusinessException("Lộ trình này không được công khai");
         }
 
-        // Hoàn thành mục tiêu cũ nếu có
-        goalRepository.findByUserIdAndStatus(userId, GoalStatus.IN_PROGRESS).ifPresent(oldGoal -> {
-            oldGoal.setStatus(GoalStatus.COMPLETED);
-            oldGoal.setCompletedAt(LocalDateTime.now(VN_ZONE));
-            goalRepository.save(oldGoal);
-        });
+        boolean isSetAsNext = "SET_AS_NEXT".equalsIgnoreCase(applyMode);
+
+        if (!isSetAsNext) {
+            // Hoàn thành mục tiêu cũ nếu chọn REPLACE_NOW
+            goalRepository.findByUserIdAndStatus(userId, GoalStatus.IN_PROGRESS).ifPresent(oldGoal -> {
+                oldGoal.setStatus(GoalStatus.COMPLETED);
+                oldGoal.setCompletedAt(LocalDateTime.now(VN_ZONE));
+                goalRepository.save(oldGoal);
+            });
+        }
 
         String authorName = email;
         UserProfile profile = profileRepository.findByEmail(email).orElse(null);
@@ -1196,7 +1267,7 @@ public class OnboardingInteractor implements OnboardingInputPort {
                 .authorName(authorName)
                 .isCustom(true)
                 .isPublic(false) // Mặc định clone về là private của user
-                .status(GoalStatus.IN_PROGRESS)
+                .status(isSetAsNext ? GoalStatus.PENDING : GoalStatus.IN_PROGRESS)
                 .createdAt(LocalDateTime.now(VN_ZONE))
                 .startDate(goalStart)
                 .endDate(goalStart.plusDays(GOAL_DURATION_DAYS - 1))
@@ -1221,9 +1292,33 @@ public class OnboardingInteractor implements OnboardingInputPort {
         taskRepository.saveAll(clonedTasks);
         userServiceGateway.updateOnboardingStatus(userId, true);
 
+        String successMsg = isSetAsNext
+                ? "Đã lưu lộ trình cộng đồng làm mục tiêu tiếp theo thành công"
+                : "Sao chép và áp dụng lộ trình cộng đồng thành công";
+
         outputPort.present(OnboardingResponseDTO.builder()
-                .message("Sao chép lộ trình cộng đồng thành công")
+                .message(successMsg)
                 .goalId(myGoal.getId())
+                .build());
+    }
+
+    private void addCustomTaskIfValid(List<TaskEntity> targetList, Long userId, Long goalId, String goalName, int weekNumber, MoodType moodType, CustomTaskItemDTO item) {
+        if (item == null) return;
+        String title = item.getTitle() != null ? item.getTitle().trim() : "";
+        if (title.isEmpty()) return;
+        String content = (item.getContent() != null && !item.getContent().isBlank())
+                ? item.getContent().trim()
+                : title;
+        targetList.add(TaskEntity.builder()
+                .userId(userId)
+                .goalId(goalId)
+                .goalName(goalName != null ? goalName.trim() : "")
+                .weekNumber(weekNumber)
+                .moodType(moodType)
+                .title(title)
+                .content(content)
+                .isAiGenerated(false)
+                .isCompleted(false)
                 .build());
     }
 

@@ -21,7 +21,15 @@ public class CreateCustomGoalRequestDTO {
     @Builder.Default
     private Boolean isPublic = false;
 
-    @NotEmpty(message = "Lộ trình phải có ít nhất 1 tuần có nhiệm vụ")
+    @Valid
+    private List<CustomTaskItemDTO> badTasks;
+
+    @Valid
+    private List<CustomTaskItemDTO> neutralTasks;
+
+    @Valid
+    private List<CustomTaskItemDTO> goodTasks;
+
     @Valid
     private List<CustomWeekDTO> weeks;
 }
