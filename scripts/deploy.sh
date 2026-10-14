@@ -59,10 +59,21 @@ fi
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# Tải trước base image (có retry 3 lần) để tránh lỗi TLS handshake timeout khi mạng VPS chập chờn
-echo "📦 Tải trước base images (Maven & JRE)..."
-docker pull maven:3.9-eclipse-temurin-21 || (sleep 3 && docker pull maven:3.9-eclipse-temurin-21) || true
-docker pull eclipse-temurin:21-jre || (sleep 3 && docker pull eclipse-temurin:21-jre) || true
+# Kiểm tra và tải trước base image (chỉ tải nếu máy chưa có) để tránh lỗi mạng Docker Hub
+echo "📦 Kiểm tra base images (Maven & JRE)..."
+if ! docker image inspect maven:3.9-eclipse-temurin-21 >/dev/null 2>&1; then
+    echo "--> Chưa có maven:3.9-eclipse-temurin-21, đang tải..."
+    docker pull maven:3.9-eclipse-temurin-21 || (sleep 3 && docker pull maven:3.9-eclipse-temurin-21) || true
+else
+    echo "--> Đã có sẵn maven:3.9-eclipse-temurin-21 trên VPS."
+fi
+
+if ! docker image inspect eclipse-temurin:21-jre >/dev/null 2>&1; then
+    echo "--> Chưa có eclipse-temurin:21-jre, đang tải..."
+    docker pull eclipse-temurin:21-jre || (sleep 3 && docker pull eclipse-temurin:21-jre) || true
+else
+    echo "--> Đã có sẵn eclipse-temurin:21-jre trên VPS."
+fi
 
 echo "--> Đang sử dụng lệnh: $COMPOSE_CMD"
 $COMPOSE_CMD up -d --build --remove-orphans
