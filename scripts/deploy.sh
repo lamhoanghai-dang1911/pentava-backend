@@ -55,9 +55,14 @@ if [ -z "$COMPOSE_CMD" ]; then
     exit 1
 fi
 
-# Bật Docker BuildKit để build song song, tận dụng cache và giảm build context
-export DOCKER_BUILDKIT=1
-export COMPOSE_DOCKER_CLI_BUILD=1
+# Chỉ bật BuildKit nếu VPS đã cài đặt plugin docker buildx, tránh lỗi thiếu component buildx
+if docker buildx version >/dev/null 2>&1; then
+    export DOCKER_BUILDKIT=1
+    export COMPOSE_DOCKER_CLI_BUILD=1
+else
+    unset DOCKER_BUILDKIT
+    unset COMPOSE_DOCKER_CLI_BUILD
+fi
 
 # Kiểm tra và tải trước base image (chỉ tải nếu máy chưa có) để tránh lỗi mạng Docker Hub
 echo "📦 Kiểm tra base images (Maven & JRE)..."
