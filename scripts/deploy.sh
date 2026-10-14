@@ -33,13 +33,35 @@ git fetch origin main
 git reset --hard origin/main
 
 # 3. Build & Khởi động lại các container
-echo "🚀 [3/5] Tiến hành build và chạy container (docker compose up -d --build)..."
-docker compose up -d --build --remove-orphans
+echo "🚀 [3/5] Tiến hành build và chạy container..."
+
+COMPOSE_CMD=""
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD="docker-compose"
+else
+    echo "⚠️ Chưa có Docker Compose trên VPS, đang tự động cài đặt..."
+    apt-get update -y && (apt-get install -y docker-compose-plugin || apt-get install -y docker-compose)
+    if docker compose version >/dev/null 2>&1; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        COMPOSE_CMD="docker-compose"
+    fi
+fi
+
+if [ -z "$COMPOSE_CMD" ]; then
+    echo "❌ LỖI: Không tìm thấy lệnh docker compose hoặc docker-compose!"
+    exit 1
+fi
+
+echo "--> Đang sử dụng lệnh: $COMPOSE_CMD"
+$COMPOSE_CMD up -d --build --remove-orphans
 
 # 4. Kiểm tra sức khỏe các dịch vụ
 echo "🩺 [4/5] Đang kiểm tra trạng thái hoạt động của các container..."
 sleep 15
-docker compose ps
+$COMPOSE_CMD ps
 
 # 5. Dọn dẹp tài nguyên thừa (Clean up)
 echo "🧹 [5/5] Tiến hành làm sạch các image cũ & build cache thừa..."
