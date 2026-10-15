@@ -54,6 +54,12 @@ springdoc:
   swagger-ui:
     enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
 
+supabase:
+  url: ${SUPABASE_URL:https://olgtvgfgpaydkopjhern.supabase.co}
+  service-key: ${SUPABASE_SERVICE_KEY:}
+  avatar-bucket: ${SUPABASE_AVATAR_BUCKET:avatar}
+  signed-url-expiry-seconds: ${AVATAR_SIGNED_URL_EXPIRY_SECONDS:21600}
+
 google:
   oauth:
     client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}

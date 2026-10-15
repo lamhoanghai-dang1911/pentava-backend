@@ -12,11 +12,14 @@ public class UpdateProfileInteractor implements UpdateProfileInputPort {
 
     private final UserRepositoryGateway userRepositoryGateway;
     private final OnboardingProfileGateway onboardingProfileGateway;
+    private final com.nqt.auth.infrastructure.storage.SupabaseAvatarSignedUrlService supabaseAvatarSignedUrlService;
 
     public UpdateProfileInteractor(UserRepositoryGateway userRepositoryGateway,
-                                  OnboardingProfileGateway onboardingProfileGateway) {
+                                  OnboardingProfileGateway onboardingProfileGateway,
+                                  com.nqt.auth.infrastructure.storage.SupabaseAvatarSignedUrlService supabaseAvatarSignedUrlService) {
         this.userRepositoryGateway = userRepositoryGateway;
         this.onboardingProfileGateway = onboardingProfileGateway;
+        this.supabaseAvatarSignedUrlService = supabaseAvatarSignedUrlService;
     }
 
     @Override
@@ -29,18 +32,20 @@ public class UpdateProfileInteractor implements UpdateProfileInputPort {
             onboardingProfileGateway.updateProfileName(user.getId(), user.getEmail(), requestDTO.getName());
         }
         if (requestDTO.getAvatarUrl() != null) {
-            user.setAvatarUrl(requestDTO.getAvatarUrl());
+            String extracted = supabaseAvatarSignedUrlService.extractStoragePath(requestDTO.getAvatarUrl());
+            user.setAvatarUrl(extracted != null ? extracted : requestDTO.getAvatarUrl());
         }
         if (requestDTO.getBio() != null) {
             user.setBio(requestDTO.getBio());
         }
 
         User saved = userRepositoryGateway.save(user);
+        String signedAvatarUrl = supabaseAvatarSignedUrlService.createSignedUrl(saved.getAvatarUrl());
         return UserQueryResponseDTO.builder()
                 .id(saved.getId())
                 .email(saved.getEmail())
                 .name(saved.getName())
-                .avatarUrl(saved.getAvatarUrl())
+                .avatarUrl(signedAvatarUrl)
                 .bio(saved.getBio())
                 .build();
     }

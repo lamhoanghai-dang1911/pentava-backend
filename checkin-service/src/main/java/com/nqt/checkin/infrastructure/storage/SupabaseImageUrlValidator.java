@@ -24,6 +24,7 @@ public class SupabaseImageUrlValidator {
             Pattern.compile(".*\\.(jpe?g|png|webp)$", Pattern.CASE_INSENSITIVE);
 
     private final String expectedHost;
+    private final String bucket;
     private final String pathPrefix;
 
     public SupabaseImageUrlValidator(@Value("${supabase.url}") String supabaseUrl,
@@ -38,30 +39,47 @@ public class SupabaseImageUrlValidator {
             throw new IllegalStateException("supabase.url không hợp lệ (cần dạng https://<project>.supabase.co)");
         }
         this.expectedHost = host.toLowerCase(Locale.ROOT);
+        this.bucket = bucket;
         this.pathPrefix = "/storage/v1/object/public/" + bucket + "/tasks/";
     }
 
     public void requireValid(String imageUrl) {
-        if (imageUrl == null || imageUrl.isBlank() || imageUrl.length() > MAX_URL_LENGTH) {
+        if (imageUrl == null || imageUrl.isBlank() || imageUrl.length() > 500) {
             throw invalid();
         }
 
+        String clean = imageUrl.trim();
+
+        // 1. Chấp nhận dạng relative storage path: tasks/{progressId}/{filename}.jpg
+        if (clean.startsWith("tasks/") && !clean.contains("..")) {
+            String pathWithoutQuery = clean.split("\\?")[0];
+            if (ALLOWED_EXTENSION.matcher(pathWithoutQuery).matches()) {
+                return;
+            }
+        }
+
+        // 2. Chấp nhận full URL từ Supabase dự án (public, sign, authenticated hoặc direct object)
         URI uri;
         try {
-            uri = new URI(imageUrl);
+            uri = new URI(clean);
         } catch (URISyntaxException e) {
             throw invalid();
         }
 
         String path = uri.getPath(); // đã decode, nên %2e%2e cũng bị bắt bởi kiểm tra ".."
+        boolean isSupabaseStoragePath = path != null
+                && (path.startsWith(pathPrefix)
+                || path.startsWith("/storage/v1/object/sign/" + bucket + "/tasks/")
+                || path.startsWith("/storage/v1/object/authenticated/" + bucket + "/tasks/")
+                || path.startsWith("/storage/v1/object/" + bucket + "/tasks/"));
+
         boolean valid = "https".equalsIgnoreCase(uri.getScheme())
                 && uri.getUserInfo() == null
                 && uri.getPort() == -1
                 && uri.getFragment() == null
                 && uri.getHost() != null
                 && expectedHost.equalsIgnoreCase(uri.getHost())
-                && path != null
-                && path.startsWith(pathPrefix)
+                && isSupabaseStoragePath
                 && !path.contains("..")
                 && ALLOWED_EXTENSION.matcher(path).matches();
 

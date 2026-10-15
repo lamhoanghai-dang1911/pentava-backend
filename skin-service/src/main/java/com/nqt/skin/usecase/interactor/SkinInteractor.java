@@ -31,6 +31,7 @@ public class SkinInteractor implements SkinInputPort {
     private final UserInventoryRepository userInventoryRepository;
     private final UserEquippedSkinRepository userEquippedSkinRepository;
     private final com.nqt.skin.infrastructure.client.ShopSubscriptionClient shopSubscriptionClient;
+    private final com.nqt.skin.infrastructure.storage.SupabaseSkinSignedUrlService supabaseSkinSignedUrlService;
 
     @Override
     @Transactional
@@ -44,7 +45,7 @@ public class SkinInteractor implements SkinInputPort {
                         .slot(base.getSlot())
                         .code(base.getCode())
                         .name(base.getName())
-                        .imageUrl(base.getImageUrl())
+                        .imageUrl(supabaseSkinSignedUrlService.createSignedUrl(base.getImageUrl()))
                         .build()
         ));
 
@@ -73,7 +74,7 @@ public class SkinInteractor implements SkinInputPort {
                                 .slot(item.getSlot())
                                 .code(item.getCode())
                                 .name(item.getName())
-                                .imageUrl(item.getImageUrl())
+                                .imageUrl(supabaseSkinSignedUrlService.createSignedUrl(item.getImageUrl()))
                                 .build()
                 );
             }
@@ -218,7 +219,7 @@ public class SkinInteractor implements SkinInputPort {
                 .name(entity.getName())
                 .slot(entity.getSlot())
                 .layerOrder(entity.getLayerOrder())
-                .imageUrl(entity.getImageUrl())
+                .imageUrl(supabaseSkinSignedUrlService.createSignedUrl(entity.getImageUrl()))
                 .priceRuby(entity.getPriceRuby())
                 .description(entity.getDescription())
                 .build();

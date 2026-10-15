@@ -43,7 +43,9 @@ jwt:
 # SUPABASE_URL dạng: https://<project-ref>.supabase.co
 supabase:
   url: ${SUPABASE_URL}
+  service-key: ${SUPABASE_SERVICE_KEY:}
   checkin-bucket: ${SUPABASE_CHECKIN_BUCKET:pentava-checkin-images}
+  signed-url-expiry-seconds: ${CHECKIN_SIGNED_URL_EXPIRY_SECONDS:21600}
 
 springdoc:
   api-docs:

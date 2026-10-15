@@ -13,11 +13,14 @@ public class GetUserQueryInteractor implements GetUserQueryInputPort {
 
     private final UserRepositoryGateway userRepositoryGateway;
     private final OnboardingProfileGateway onboardingProfileGateway;
+    private final com.nqt.auth.infrastructure.storage.SupabaseAvatarSignedUrlService supabaseAvatarSignedUrlService;
 
     public GetUserQueryInteractor(UserRepositoryGateway userRepositoryGateway,
-                                  OnboardingProfileGateway onboardingProfileGateway) {
+                                  OnboardingProfileGateway onboardingProfileGateway,
+                                  com.nqt.auth.infrastructure.storage.SupabaseAvatarSignedUrlService supabaseAvatarSignedUrlService) {
         this.userRepositoryGateway = userRepositoryGateway;
         this.onboardingProfileGateway = onboardingProfileGateway;
+        this.supabaseAvatarSignedUrlService = supabaseAvatarSignedUrlService;
     }
 
     @Override
@@ -38,11 +41,12 @@ public class GetUserQueryInteractor implements GetUserQueryInputPort {
     }
 
     private UserQueryResponseDTO toDTO(User user, String resolvedName) {
+        String signedAvatarUrl = supabaseAvatarSignedUrlService.createSignedUrl(user.getAvatarUrl());
         return UserQueryResponseDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .name(resolvedName)
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(signedAvatarUrl)
                 .bio(user.getBio())
                 .build();
     }

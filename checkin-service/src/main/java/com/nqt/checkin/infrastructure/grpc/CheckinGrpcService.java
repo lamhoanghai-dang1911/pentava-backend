@@ -29,6 +29,7 @@ public class CheckinGrpcService extends CheckinServiceGrpc.CheckinServiceImplBas
     private static final long MAX_RANGE_DAYS = 92;
 
     private final CheckinRepositoryGateway checkinRepositoryGateway;
+    private final com.nqt.checkin.infrastructure.storage.SupabaseSignedUrlService supabaseSignedUrlService;
 
     @Override
     public void getCheckinsByDateRange(GetCheckinsByDateRangeRequest request,
@@ -59,11 +60,12 @@ public class CheckinGrpcService extends CheckinServiceGrpc.CheckinServiceImplBas
                 if (entity.getImageUrl() == null || entity.getImageUrl().isBlank()) {
                     continue;
                 }
+                String signedUrl = supabaseSignedUrlService.createSignedUrl(entity.getImageUrl());
                 response.addCheckins(CheckinItem.newBuilder()
                         .setId(entity.getId())
                         .setTaskProgressId(entity.getTaskProgressId())
                         .setCheckinDate(entity.getCheckinDate().toString())
-                        .setImageUrl(entity.getImageUrl())
+                        .setImageUrl(signedUrl != null ? signedUrl : entity.getImageUrl())
                         .setCreatedAt(entity.getCreatedAt() == null ? "" : entity.getCreatedAt().toString())
                         .build());
             }

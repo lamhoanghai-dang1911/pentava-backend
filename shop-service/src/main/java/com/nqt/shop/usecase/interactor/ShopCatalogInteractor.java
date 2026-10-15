@@ -25,6 +25,7 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
 
     private final ShopItemRepository shopItemRepository;
     private final SkinServiceGateway skinServiceGateway;
+    private final com.nqt.shop.infrastructure.storage.SupabaseShopSignedUrlService supabaseShopSignedUrlService;
 
     @Value("${supabase.url:https://olgtvgfgpaydkopjhern.supabase.co}")
     private String supabaseUrl;
@@ -45,11 +46,14 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
             ownedSkinIds = Collections.emptySet();
         }
 
-        String itemBackgroundUrl = getItemBackgroundUrl();
+        String rawItemBackgroundUrl = getItemBackgroundUrl();
+        String itemBackgroundUrl = supabaseShopSignedUrlService.createSignedUrl(rawItemBackgroundUrl);
 
         return items.stream()
                 .map(item -> {
-                    String thumbnailUrl = resolveThumbnailUrl(item);
+                    String rawThumbnail = resolveThumbnailUrl(item);
+                    String signedThumbnail = supabaseShopSignedUrlService.createSignedUrl(rawThumbnail);
+                    String signedImageUrl = supabaseShopSignedUrlService.createSignedUrl(item.getImageUrl());
                     return ShopItemResponseDTO.builder()
                             .id(item.getId())
                             .skinItemId(item.getSkinItemId())
@@ -57,10 +61,10 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
                             .name(item.getName())
                             .slot(item.getSlot())
                             .priceRuby(item.getPriceRuby())
-                            .imageUrl(item.getImageUrl())
+                            .imageUrl(signedImageUrl)
                             .itemBackgroundUrl(itemBackgroundUrl)
-                            .thumbnailUrl(thumbnailUrl)
-                            .thumbnailLayers(buildThumbnailLayers(thumbnailUrl))
+                            .thumbnailUrl(signedThumbnail)
+                            .thumbnailLayers(buildThumbnailLayers(signedThumbnail, itemBackgroundUrl))
                             .description(item.getDescription())
                             .isOwned(ownedSkinIds.contains(item.getSkinItemId()))
                             .build();
@@ -72,11 +76,13 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
     @Transactional(readOnly = true)
     public List<ShopThumbnailResponseDTO> getShopThumbnails() {
         List<ShopItemEntity> items = shopItemRepository.findByIsForSaleTrue();
-        String itemBackgroundUrl = getItemBackgroundUrl();
+        String rawItemBackgroundUrl = getItemBackgroundUrl();
+        String itemBackgroundUrl = supabaseShopSignedUrlService.createSignedUrl(rawItemBackgroundUrl);
 
         return items.stream()
                 .map(item -> {
-                    String thumbnailUrl = resolveThumbnailUrl(item);
+                    String rawThumbnail = resolveThumbnailUrl(item);
+                    String signedThumbnail = supabaseShopSignedUrlService.createSignedUrl(rawThumbnail);
                     return ShopThumbnailResponseDTO.builder()
                             .shopItemId(item.getId())
                             .skinItemId(item.getSkinItemId())
@@ -84,8 +90,8 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
                             .name(item.getName())
                             .slot(item.getSlot())
                             .itemBackgroundUrl(itemBackgroundUrl)
-                            .thumbnailUrl(thumbnailUrl)
-                            .thumbnailLayers(buildThumbnailLayers(thumbnailUrl))
+                            .thumbnailUrl(signedThumbnail)
+                            .thumbnailLayers(buildThumbnailLayers(signedThumbnail, itemBackgroundUrl))
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -106,8 +112,8 @@ public class ShopCatalogInteractor implements ShopCatalogInputPort {
         return supabaseUrl.replaceAll("/+$", "") + "/storage/v1/object/public/" + thumbnailBucket + "/item_background.png";
     }
 
-    private List<String> buildThumbnailLayers(String thumbnailUrl) {
-        String bg = getItemBackgroundUrl();
+    private List<String> buildThumbnailLayers(String thumbnailUrl, String itemBackgroundUrl) {
+        String bg = itemBackgroundUrl != null ? itemBackgroundUrl : getItemBackgroundUrl();
         if (thumbnailUrl != null && !thumbnailUrl.isBlank()) {
             return List.of(bg, thumbnailUrl);
         }

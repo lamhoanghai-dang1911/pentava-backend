@@ -13,8 +13,8 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    ports:
-      - "5432:5432"   # bỏ dòng này khi lên production nếu không cần truy cập DB từ ngoài
+    # ports:
+    #   - "127.0.0.1:5432:5432"   # Chỉ mở qua localhost nếu cần debug, không expose ra 0.0.0.0 để tránh bị scan/ransomware
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 5s

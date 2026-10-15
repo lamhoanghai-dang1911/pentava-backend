@@ -19,13 +19,16 @@ public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase 
     private final GetUserQueryInputPort getUserQueryInputPort;
     private final UserRepositoryGateway userRepositoryGateway;
     private final com.nqt.auth.interfaceadapters.gateway.UserJpaRepository userJpaRepository;
+    private final com.nqt.auth.infrastructure.storage.SupabaseAvatarSignedUrlService supabaseAvatarSignedUrlService;
 
     public UserGrpcServiceAdapter(GetUserQueryInputPort getUserQueryInputPort,
                                   UserRepositoryGateway userRepositoryGateway,
-                                  com.nqt.auth.interfaceadapters.gateway.UserJpaRepository userJpaRepository) {
+                                  com.nqt.auth.interfaceadapters.gateway.UserJpaRepository userJpaRepository,
+                                  com.nqt.auth.infrastructure.storage.SupabaseAvatarSignedUrlService supabaseAvatarSignedUrlService) {
         this.getUserQueryInputPort = getUserQueryInputPort;
         this.userRepositoryGateway = userRepositoryGateway;
         this.userJpaRepository = userJpaRepository;
+        this.supabaseAvatarSignedUrlService = supabaseAvatarSignedUrlService;
     }
 
     @Override
@@ -102,11 +105,12 @@ public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase 
 
             GetSuggestedUsersResponse.Builder builder = GetSuggestedUsersResponse.newBuilder();
             for (UserEntity u : candidates) {
+                String signedAvatar = supabaseAvatarSignedUrlService.createSignedUrl(u.getAvatarUrl());
                 builder.addUsers(UserSocialProfile.newBuilder()
                         .setId(u.getId())
                         .setEmail(u.getEmail() != null ? u.getEmail() : "")
                         .setName(u.getName() != null ? u.getName() : "")
-                        .setAvatarUrl(u.getAvatarUrl() != null ? u.getAvatarUrl() : "")
+                        .setAvatarUrl(signedAvatar != null ? signedAvatar : "")
                         .setBio(u.getBio() != null ? u.getBio() : "")
                         .build());
             }
@@ -133,12 +137,13 @@ public class UserGrpcServiceAdapter extends UserServiceGrpc.UserServiceImplBase 
 
             GetAllUsersResponse.Builder builder = GetAllUsersResponse.newBuilder();
             for (UserEntity u : users) {
+                String signedAvatar = supabaseAvatarSignedUrlService.createSignedUrl(u.getAvatarUrl());
                 builder.addUsers(AdminUserItemResponse.newBuilder()
                         .setId(u.getId())
                         .setEmail(u.getEmail() != null ? u.getEmail() : "")
                         .setName(u.getName() != null ? u.getName() : "")
                         .setRole(u.getRole() != null ? u.getRole() : "ROLE_USER")
-                        .setAvatarUrl(u.getAvatarUrl() != null ? u.getAvatarUrl() : "")
+                        .setAvatarUrl(signedAvatar != null ? signedAvatar : "")
                         .setBio(u.getBio() != null ? u.getBio() : "")
                         .setIsVerified(u.isVerified())
                         .setHasCompletedOnboarding(u.isHasCompletedOnboarding())

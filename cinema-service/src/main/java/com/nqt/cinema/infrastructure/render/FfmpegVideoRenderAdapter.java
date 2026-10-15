@@ -37,13 +37,22 @@ public class FfmpegVideoRenderAdapter implements VideoRenderGateway {
     private static final long FFMPEG_TIMEOUT_SECONDS = 180;
 
     private final String fontFilePath;
+    private final String supabaseUrl;
+    private final String serviceKey;
+    private final String checkinBucket;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(DOWNLOAD_TIMEOUT_SECONDS))
             .build();
 
     public FfmpegVideoRenderAdapter(
-            @Value("${cinema.render.font-file:/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf}") String fontFilePath) {
+            @Value("${cinema.render.font-file:/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf}") String fontFilePath,
+            @Value("${supabase.url:}") String supabaseUrl,
+            @Value("${supabase.service-key:}") String serviceKey,
+            @Value("${supabase.checkin-bucket:pentava-checkin-images}") String checkinBucket) {
         this.fontFilePath = fontFilePath;
+        this.supabaseUrl = supabaseUrl == null ? "" : supabaseUrl.replaceAll("/+$", "");
+        this.serviceKey = serviceKey == null ? "" : serviceKey.trim();
+        this.checkinBucket = checkinBucket;
     }
 
     @Override
@@ -87,28 +96,38 @@ public class FfmpegVideoRenderAdapter implements VideoRenderGateway {
         List<java.util.concurrent.CompletableFuture<File>> futures = new ArrayList<>();
         for (int i = 0; i < photos.size(); i++) {
             final int index = i;
-            final String url = photos.get(i).imageUrl();
+            final String rawUrl = photos.get(i).imageUrl();
             futures.add(java.util.concurrent.CompletableFuture.supplyAsync(() -> {
                 try {
-                    HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                            .timeout(Duration.ofSeconds(DOWNLOAD_TIMEOUT_SECONDS))
-                            .GET()
-                            .build();
+                    String targetUrl = rawUrl;
+                    if (targetUrl.startsWith("tasks/") && !supabaseUrl.isBlank()) {
+                        targetUrl = supabaseUrl + "/storage/v1/object/" + checkinBucket + "/" + targetUrl;
+                    }
 
+                    HttpRequest.Builder reqBuilder = HttpRequest.newBuilder(URI.create(targetUrl))
+                            .timeout(Duration.ofSeconds(DOWNLOAD_TIMEOUT_SECONDS))
+                            .GET();
+
+                    if (!serviceKey.isBlank() && (targetUrl.contains("supabase.co") || (!supabaseUrl.isBlank() && targetUrl.startsWith(supabaseUrl)))) {
+                        reqBuilder.header("apikey", serviceKey);
+                        reqBuilder.header("Authorization", "Bearer " + serviceKey);
+                    }
+
+                    HttpRequest request = reqBuilder.build();
                     HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
                     if (response.statusCode() != 200) {
-                        throw new RuntimeException("Không tải được ảnh (HTTP " + response.statusCode() + "): " + url);
+                        throw new RuntimeException("Không tải được ảnh (HTTP " + response.statusCode() + "): " + targetUrl);
                     }
                     byte[] body = response.body();
                     if (body.length == 0 || body.length > MAX_IMAGE_BYTES) {
-                        throw new RuntimeException("Ảnh không hợp lệ hoặc quá lớn: " + url);
+                        throw new RuntimeException("Ảnh không hợp lệ hoặc quá lớn: " + targetUrl);
                     }
 
                     File imgFile = workDir.resolve("img_" + index + ".jpg").toFile();
                     Files.write(imgFile.toPath(), body);
                     return imgFile;
                 } catch (Exception e) {
-                    throw new RuntimeException("Tải ảnh thất bại: " + url, e);
+                    throw new RuntimeException("Tải ảnh thất bại: " + rawUrl, e);
                 }
             }));
         }

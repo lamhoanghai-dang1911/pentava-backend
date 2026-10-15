@@ -31,11 +31,12 @@ public class CheckinInteractor implements CheckinInputPort {
     private final CurrentUserProvider currentUserProvider;
     private final UserServiceGateway userServiceGateway;
     private final SupabaseImageUrlValidator imageUrlValidator;
+    private final com.nqt.checkin.infrastructure.storage.SupabaseSignedUrlService supabaseSignedUrlService;
 
     @Override
     public void saveCheckinImageUrl(Long taskProgressId, CheckinRequestDTO requestDTO) {
-        String imageUrl = requestDTO.getImageUrl() == null ? null : requestDTO.getImageUrl().trim();
-        imageUrlValidator.requireValid(imageUrl);
+        String rawImageUrl = requestDTO.getImageUrl() == null ? null : requestDTO.getImageUrl().trim();
+        imageUrlValidator.requireValid(rawImageUrl);
 
         Long userId = resolveCurrentUserId();
         LocalDate today = today();
@@ -48,16 +49,19 @@ public class CheckinInteractor implements CheckinInputPort {
                         .createdAt(LocalDateTime.now(VN_ZONE))
                         .build());
 
-        entity.setImageUrl(imageUrl);
+        String storagePath = supabaseSignedUrlService.extractStoragePath(rawImageUrl);
+        String savedImageUrl = storagePath != null ? storagePath : rawImageUrl;
+        entity.setImageUrl(savedImageUrl);
         if (requestDTO.getFileSizeBytes() != null && requestDTO.getFileSizeBytes() > 0) {
             entity.setFileSizeBytes(requestDTO.getFileSizeBytes());
         }
         checkinRepositoryGateway.save(entity);
 
+        String signedUrl = supabaseSignedUrlService.createSignedUrl(savedImageUrl);
         outputPort.present(CheckinResponseDTO.builder()
                 .message("Lưu đường dẫn ảnh check-in thành công")
                 .taskProgressId(taskProgressId)
-                .imageUrl(imageUrl)
+                .imageUrl(signedUrl)
                 .checkinDate(today)
                 .build());
     }
@@ -80,10 +84,11 @@ public class CheckinInteractor implements CheckinInputPort {
             return;
         }
 
+        String signedUrl = supabaseSignedUrlService.createSignedUrl(entity.getImageUrl());
         outputPort.present(CheckinResponseDTO.builder()
                 .message("Lấy thông tin check-in thành công")
                 .taskProgressId(taskProgressId)
-                .imageUrl(entity.getImageUrl())
+                .imageUrl(signedUrl)
                 .checkinDate(entity.getCheckinDate())
                 .build());
     }
