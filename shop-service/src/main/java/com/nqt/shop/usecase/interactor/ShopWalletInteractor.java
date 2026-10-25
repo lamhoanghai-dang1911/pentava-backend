@@ -38,6 +38,8 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
     private final TopupTransactionRepository topupTransactionRepository;
     private final com.nqt.shop.infrastructure.persistence.repository.SubscriptionOrderRepository subscriptionOrderRepository;
     private final com.nqt.shop.usecase.boundary.SubscriptionInputPort subscriptionInputPort;
+    @org.springframework.context.annotation.Lazy
+    private final com.nqt.shop.usecase.boundary.CashflowInputPort cashflowInputPort;
 
     @Value("${sepay.api-key:your_sepay_api_key_here}")
     private String sepayApiKey;
@@ -198,7 +200,12 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        topupTransactionRepository.save(tx);
+        TopupTransactionEntity savedTx = topupTransactionRepository.save(tx);
+        try {
+            cashflowInputPort.recordTopupPending(savedTx);
+        } catch (Exception e) {
+            log.warn("Không thể ghi nhận cashflow pending: {}", e.getMessage());
+        }
 
         // Sinh URL mã QR SePay
         String qrUrl = String.format(
@@ -304,6 +311,11 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
         topupTransactionRepository.save(tx);
 
         creditRubyToUser(tx.getUserId(), tx.getRubyAmount());
+        try {
+            cashflowInputPort.recordTopupSuccess(tx);
+        } catch (Exception e) {
+            log.warn("Không thể ghi nhận cashflow success: {}", e.getMessage());
+        }
         log.info("Processed SePay topup successfully: txCode={}, userId={}, rubyAdded={}",
                 finalTxCode, tx.getUserId(), tx.getRubyAmount());
     }
@@ -324,6 +336,11 @@ public class ShopWalletInteractor implements ShopWalletInputPort {
         topupTransactionRepository.save(tx);
 
         creditRubyToUser(tx.getUserId(), tx.getRubyAmount());
+        try {
+            cashflowInputPort.recordTopupSuccess(tx);
+        } catch (Exception e) {
+            log.warn("Không thể ghi nhận cashflow success cho mock: {}", e.getMessage());
+        }
         log.info("Mock confirmed topup: txCode={}, userId={}, rubyAdded={}",
                 transactionCode, tx.getUserId(), tx.getRubyAmount());
     }

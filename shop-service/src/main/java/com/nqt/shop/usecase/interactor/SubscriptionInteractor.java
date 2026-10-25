@@ -30,6 +30,8 @@ public class SubscriptionInteractor implements SubscriptionInputPort {
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final SubscriptionOrderRepository subscriptionOrderRepository;
     private final UserWalletRepository userWalletRepository;
+    @org.springframework.context.annotation.Lazy
+    private final com.nqt.shop.usecase.boundary.CashflowInputPort cashflowInputPort;
 
     @Value("${sepay.bank-code:MBBank}")
     private String sepayBankCode;
@@ -135,6 +137,11 @@ public class SubscriptionInteractor implements SubscriptionInputPort {
 
         order.setQrCodeUrl(qrUrl);
         subscriptionOrderRepository.save(order);
+        try {
+            cashflowInputPort.recordSubscriptionPending(order);
+        } catch (Exception e) {
+            log.warn("Không thể ghi nhận cashflow pending cho subscription: {}", e.getMessage());
+        }
 
         log.info("Initialized subscription purchase order for user {}: txCode={}, plan={}, amountVnd={}",
                 userId, txCode, plan.getCode(), plan.getPriceVnd());
@@ -261,6 +268,13 @@ public class SubscriptionInteractor implements SubscriptionInputPort {
                 creditRubyToUser(userId, bonusRuby);
                 log.info("Tự động cộng thưởng {} Ruby vào ví của user {} theo gói {}", bonusRuby, userId, plan.getCode());
             }
+        }
+
+        // 3. Ghi nhận vào sổ quỹ dòng tiền và bắn realtime cho Admin
+        try {
+            cashflowInputPort.recordSubscriptionSuccess(order);
+        } catch (Exception e) {
+            log.warn("Không thể ghi nhận cashflow success cho subscription: {}", e.getMessage());
         }
     }
 

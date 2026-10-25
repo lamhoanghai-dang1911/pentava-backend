@@ -28,6 +28,8 @@ public class ShopPurchaseInteractor implements ShopPurchaseInputPort {
     private final UserWalletRepository userWalletRepository;
     private final PurchaseTransactionRepository purchaseTransactionRepository;
     private final SkinServiceGateway skinServiceGateway;
+    @org.springframework.context.annotation.Lazy
+    private final com.nqt.shop.usecase.boundary.CashflowInputPort cashflowInputPort;
 
     @Override
     @Transactional
@@ -84,6 +86,13 @@ public class ShopPurchaseInteractor implements ShopPurchaseInputPort {
 
         log.info("User {} bought skin {} ({}) for {} Ruby. Remaining: {}",
                 userId, item.getSkinItemId(), item.getName(), item.getPriceRuby(), wallet.getRubyBalance());
+
+        // Ghi nhận vào dòng tiền chi tiêu (OUT) và bắn realtime
+        try {
+            cashflowInputPort.recordShopPurchase(userId, item);
+        } catch (Exception e) {
+            log.warn("Không thể ghi nhận cashflow purchase: {}", e.getMessage());
+        }
 
         return BuyItemResponseDTO.builder()
                 .success(true)

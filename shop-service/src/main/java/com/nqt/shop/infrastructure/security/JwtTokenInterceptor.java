@@ -47,13 +47,20 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
                 uri.startsWith("/api/shop/subscription/entitlement");
 
         String authHeader = request.getHeader("Authorization");
+        String token = null;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else if (request.getParameter("token") != null && !request.getParameter("token").isBlank()) {
+            token = request.getParameter("token");
+        }
+
+        if (token != null) {
             try {
                 Claims claims = Jwts.parser()
                         .verifyWith(signingKey)
                         .build()
-                        .parseSignedClaims(authHeader.substring(7))
+                        .parseSignedClaims(token)
                         .getPayload();
 
                 String email = claims.getSubject();
