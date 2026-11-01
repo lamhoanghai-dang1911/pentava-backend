@@ -1,6 +1,6 @@
 param (
     [Parameter(Position = 0, Mandatory = $false)]
-    [ValidateSet("start", "stop", "status", "restart", "logs")]
+    [ValidateSet("start", "stop", "status", "restart", "logs", "build-status")]
     [string]$Action = "status"
 )
 
@@ -35,6 +35,21 @@ switch ($Action.ToLower()) {
     "logs" {
         Write-Host ">> Xem 50 dong log gan nhat cua Jenkins:" -ForegroundColor Yellow
         ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" "docker logs --tail 50 -f jenkins"
+    }
+    "build-status" {
+        Write-Host ">> Kiem tra ban build moi nhat cua pipeline pentava-backend..." -ForegroundColor Yellow
+        ssh -o StrictHostKeyChecking=no "${VPS_USER}@${VPS_HOST}" '
+            LAST_BUILD=$(docker exec jenkins cat /var/jenkins_home/jobs/pentava-backend/builds/permalinks 2>/dev/null | grep lastCompletedBuild | awk "{print \$2}")
+            if [ -z "$LAST_BUILD" ]; then
+                echo "Chua tim thay ban build nao."
+            else
+                echo "=== BAN BUILD MOI NHAT: #$LAST_BUILD ==="
+                docker exec jenkins tail -n 12 "/var/jenkins_home/jobs/pentava-backend/builds/$LAST_BUILD/log" 2>/dev/null || true
+            fi
+            echo ""
+            echo "=== TRANG THAI CUA CONTAINER BACKEND TREN VPS ==="
+            docker ps --format "table {{.Names}}\t{{.Status}}" | grep pentava
+        '
     }
     "status" {
         Write-Host ">> Kiem tra trang thai Jenkins va tai nguyen VPS..." -ForegroundColor Yellow
